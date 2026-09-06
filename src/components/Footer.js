@@ -1,8 +1,9 @@
 // AI Tools Store - Modern High-End Footer Component
 import { t } from '../i18n/i18n.js';
+import { defaultWhatsappUrl } from '../lib/supabase.js';
 
 export function renderFooter() {
-  const defaultWhatsApp = import.meta.env.VITE_DEFAULT_WHATSAPP_URL || 'https://chat.whatsapp.com/invite/aitools-store-vip';
+  const defaultWhatsApp = defaultWhatsappUrl;
 
   return `
     <footer class="site-footer">

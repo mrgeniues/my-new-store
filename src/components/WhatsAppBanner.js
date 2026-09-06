@@ -1,7 +1,8 @@
 // AI Tools Store - Bottom WhatsApp Community CTA Banner Component
+import { defaultWhatsappUrl } from '../lib/supabase.js';
 
 export function renderWhatsAppBanner() {
-  const defaultWhatsApp = import.meta.env.VITE_DEFAULT_WHATSAPP_URL || 'https://chat.whatsapp.com/invite/aitools-store-vip';
+  const defaultWhatsApp = defaultWhatsappUrl;
 
   return `
     <section class="whatsapp-cta-section">

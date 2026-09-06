@@ -6,6 +6,7 @@ import { openAccountModal } from './AccountModal.js';
 import { showToast } from '../utils/helpers.js';
 import { renderLanguageSelectorButton, initLanguageSelector } from './LanguageSelector.js';
 import { t } from '../i18n/i18n.js';
+import { defaultWhatsappUrl } from '../lib/supabase.js';
 
 /**
  * Helper to render the desktop / mobile authentication slot
@@ -194,7 +195,7 @@ export function renderNavbar(activePath = '/') {
   const isContact = activePath === '/contact';
   const isAdmin = activePath === '/admin';
 
-  const defaultWhatsApp = import.meta.env.VITE_DEFAULT_WHATSAPP_URL || 'https://chat.whatsapp.com/invite/aitools-store-vip';
+  const defaultWhatsApp = defaultWhatsappUrl;
   const user = authService.currentUser;
   const profile = authService.currentProfile;
 

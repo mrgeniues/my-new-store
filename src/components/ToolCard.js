@@ -2,6 +2,8 @@
 import { getToolIconSvg, buildWhatsAppLink, showToast } from '../utils/helpers.js';
 import { requireAuth } from '../utils/authGuard.js';
 import { t, getLocalizedTool } from '../i18n/i18n.js';
+import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
+import { authService } from '../lib/auth.js';
 
 // Local storage key for saved favorites
 const FAVORITES_KEY = 'ai_tools_favorites_v1';
@@ -167,6 +169,8 @@ export function renderToolCard(rawTool) {
           class="btn-card-buy-primary"
           data-buy-url="${buyLink}"
           data-tool-id="${tool.id}"
+          data-tool-name="${tool.name}"
+          data-tool-price="${tool.price || '$19 /month'}"
           title="${t('card.buyNow')}: ${tool.name}"
         >
           <svg class="btn-bag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -223,12 +227,34 @@ export function initCardInteractions() {
     };
   });
 
-  // Protected Buy Now Action: prompts Auth if logged out, resumes action on success
+  // Protected Buy Now Action: prompts Auth if logged out, logs order in Supabase, resumes action on success
   document.querySelectorAll('.btn-card-buy-primary').forEach((btn) => {
     btn.onclick = (e) => {
       e.preventDefault();
       const buyUrl = btn.dataset.buyUrl || btn.getAttribute('href');
-      requireAuth(() => {
+      const toolId = btn.dataset.toolId;
+      const toolName = btn.dataset.toolName || 'AI Tool';
+      const toolPrice = btn.dataset.toolPrice || '$19 /month';
+
+      requireAuth(async (authResult) => {
+        if (isSupabaseConfigured) {
+          try {
+            const user = authResult?.user || authService.currentUser;
+            await supabase.from('orders').insert([
+              {
+                tool_id: toolId || null,
+                tool_name: toolName,
+                price: toolPrice,
+                user_id: user?.id || null,
+                user_email: user?.email || 'guest@anonymous.com',
+                status: 'inquiry_whatsapp',
+                created_at: new Date().toISOString()
+              }
+            ]);
+          } catch (oErr) {
+            console.warn('[ToolCard] Order log warning:', oErr);
+          }
+        }
         window.open(buyUrl, '_blank', 'noopener,noreferrer');
       }, { defaultTab: 'signup' });
     };

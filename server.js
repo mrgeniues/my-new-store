@@ -29,17 +29,51 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Configuration endpoint for client
+app.get('/api/config', (req, res) => {
+  res.json({
+    VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL || 'https://rqemoitjanmxsmcmveso.supabase.co',
+    VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxZW1vaXRqYW5teHNtY212ZXNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1Mjc1NjAsImV4cCI6MjEwNDEwMzU2MH0.GntFd-uwBQTg7RiN_ePtX2q3l1fnCF8n_KmvKes9oYk',
+    VITE_DEFAULT_WHATSAPP_URL: process.env.VITE_DEFAULT_WHATSAPP_URL || 'https://whatsapp.com/channel/0029Vb5pEK34tRrkKVuBCy0Q',
+    VITE_ADMIN_EMAILS: process.env.VITE_ADMIN_EMAILS || 'admin@aitools.store,numanali1n@gmail.com'
+  });
+});
+
 // Check if production build (dist/) exists
 if (fs.existsSync(distPath)) {
-  // Serve static assets with cache control
+  // Serve static assets with cache control (index: false so SPA route can inject runtime env)
   app.use(express.static(distPath, {
     maxAge: '1d',
-    etag: true
+    etag: true,
+    index: false
   }));
 
-  // SPA Fallback: All unmatched routes redirect to index.html
+  // SPA Route: Serve index.html with dynamically injected runtime environment variables
   app.use((req, res) => {
-    res.sendFile(path.join(distPath, 'index.html'));
+    const indexPath = path.join(distPath, 'index.html');
+    if (!fs.existsSync(indexPath)) {
+      return res.status(404).send('index.html not found');
+    }
+
+    try {
+      let html = fs.readFileSync(indexPath, 'utf8');
+
+      const runtimeEnv = {
+        VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL || 'https://rqemoitjanmxsmcmveso.supabase.co',
+        VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxZW1vaXRqYW5teHNtY212ZXNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1Mjc1NjAsImV4cCI6MjEwNDEwMzU2MH0.GntFd-uwBQTg7RiN_ePtX2q3l1fnCF8n_KmvKes9oYk',
+        VITE_DEFAULT_WHATSAPP_URL: process.env.VITE_DEFAULT_WHATSAPP_URL || 'https://whatsapp.com/channel/0029Vb5pEK34tRrkKVuBCy0Q',
+        VITE_ADMIN_EMAILS: process.env.VITE_ADMIN_EMAILS || 'admin@aitools.store,numanali1n@gmail.com'
+      };
+
+      const envScript = `<script id="hostinger-runtime-env">window.__ENV__ = ${JSON.stringify(runtimeEnv)};</script>`;
+      html = html.replace('</head>', `${envScript}\n  </head>`);
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(html);
+    } catch (readErr) {
+      console.error('[AI Tools Store] Error serving index.html:', readErr);
+      res.sendFile(indexPath);
+    }
   });
 } else {
   // Fallback if dist/ is not yet generated

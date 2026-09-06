@@ -8,13 +8,14 @@ import { renderFooter } from '../components/Footer.js';
 import { authService } from '../lib/auth.js';
 import { openAuthModal } from '../components/AuthModal.js';
 import { t } from '../i18n/i18n.js';
+import { defaultWhatsappUrl } from '../lib/supabase.js';
 
 export async function renderHomePage(root) {
   document.title = `${t('nav.brand')} | ${t('hero.headlinePart1')} ${t('hero.headlineGradient')}`;
 
   const tools = await toolsApi.getTools();
   const categories = await toolsApi.getCategories();
-  const defaultWhatsApp = import.meta.env.VITE_DEFAULT_WHATSAPP_URL || 'https://chat.whatsapp.com/invite/aitools-store-vip';
+  const defaultWhatsApp = defaultWhatsappUrl;
 
   // All active tools loaded directly from Supabase
   const displayTools = tools;

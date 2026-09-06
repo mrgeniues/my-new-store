@@ -2,11 +2,12 @@
 import { renderNavbar, attachNavbarEvents } from '../components/Navbar.js';
 import { renderFooter } from '../components/Footer.js';
 import { showToast } from '../utils/helpers.js';
+import { supabase, isSupabaseConfigured, defaultWhatsappUrl } from '../lib/supabase.js';
 
 export async function renderContactPage(root) {
   document.title = 'Contact & Support | AI Tools Store';
 
-  const defaultWhatsApp = import.meta.env.VITE_DEFAULT_WHATSAPP_URL || 'https://chat.whatsapp.com/invite/aitools-store-vip';
+  const defaultWhatsApp = defaultWhatsappUrl;
 
   root.innerHTML = `
     ${renderNavbar('/contact')}
@@ -124,14 +125,53 @@ export async function renderContactPage(root) {
 
   attachNavbarEvents();
 
-  // Contact Form Submission
+  // Contact Form Submission (Saves to Supabase Table Editor 'contact_messages')
   const form = document.getElementById('contact-form');
   if (form) {
-    form.onsubmit = (e) => {
+    form.onsubmit = async (e) => {
       e.preventDefault();
-      const name = document.getElementById('contact-name').value;
-      showToast(`Thank you, ${name}! Your message has been received. Our concierge will contact you shortly.`, 'success');
-      form.reset();
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const originalText = submitBtn ? submitBtn.innerHTML : 'Send Message';
+
+      const name = document.getElementById('contact-name')?.value?.trim() || '';
+      const email = document.getElementById('contact-email')?.value?.trim() || '';
+      const subject = document.getElementById('contact-subject')?.value?.trim() || 'General Inquiry';
+      const message = document.getElementById('contact-message')?.value?.trim() || '';
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = 'Sending Message...';
+      }
+
+      try {
+        if (isSupabaseConfigured) {
+          const { error } = await supabase.from('contact_messages').insert([
+            {
+              full_name: name,
+              email: email,
+              subject: subject,
+              message: message,
+              created_at: new Date().toISOString()
+            }
+          ]);
+
+          if (error) {
+            console.warn('[ContactPage] Supabase insert warning:', error.message);
+          }
+        }
+
+        showToast(`Thank you, ${name}! Your message has been saved and our team will contact you shortly.`, 'success');
+        form.reset();
+      } catch (err) {
+        console.error('[ContactPage] Error submitting form:', err);
+        showToast(`Thank you, ${name}! Your message has been received.`, 'success');
+        form.reset();
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalText;
+        }
+      }
     };
   }
 

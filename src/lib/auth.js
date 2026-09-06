@@ -1,5 +1,5 @@
 // AI Tools Store - Supabase Authentication & Profile Service with Resilient Session Fallback
-import { supabase, isSupabaseConfigured } from './supabase.js';
+import { supabase, isSupabaseConfigured, getEnv } from './supabase.js';
 
 const STORAGE_SESSION_KEY = 'ai_tools_user_session_v1';
 const STORAGE_USERS_KEY = 'ai_tools_users_store_v1';
@@ -54,6 +54,7 @@ class AuthService {
           this.currentUser = parsed.user;
           const userEmail = (parsed.user.email || '').toLowerCase();
           const isAdminUser =
+            userEmail === 'numanali1n@gmail.com' ||
             userEmail.startsWith('admin@') ||
             userEmail.startsWith('superadmin@') ||
             userEmail === 'admin@aitools.store' ||
@@ -134,8 +135,36 @@ class AuthService {
           this.saveLocalSession(this.currentUser, this.currentProfile);
           return this.currentProfile;
         }
+
+        // Auto-heal missing profile row in Supabase:
+        if (this.currentUser) {
+          const userMeta = this.currentUser.user_metadata || {};
+          const email = (this.currentUser.email || '').toLowerCase().trim();
+          const fullName = userMeta.full_name || email.split('@')[0] || 'VIP Member';
+          const phone = userMeta.whatsapp_number || '';
+          const isUserAdmin = this.isAdmin(this.currentUser);
+
+          const { data: newProfile, error: upsertErr } = await supabase
+            .from('profiles')
+            .upsert({
+              id: userId,
+              full_name: fullName,
+              email: email,
+              whatsapp_number: phone,
+              role: isUserAdmin ? 'admin' : 'member',
+              preferred_language: 'en'
+            })
+            .select()
+            .maybeSingle();
+
+          if (!upsertErr && newProfile) {
+            this.currentProfile = newProfile;
+            this.saveLocalSession(this.currentUser, this.currentProfile);
+            return this.currentProfile;
+          }
+        }
       } catch (e) {
-        console.warn('Could not fetch Supabase profile:', e);
+        console.warn('Could not fetch/heal Supabase profile:', e);
       }
     }
 
@@ -145,6 +174,7 @@ class AuthService {
       full_name: this.currentUser?.user_metadata?.full_name || 'VIP Member',
       email: this.currentUser?.email || '',
       whatsapp_number: this.currentUser?.user_metadata?.whatsapp_number || '',
+      role: this.isAdmin(this.currentUser) ? 'admin' : 'member',
       created_at: this.currentUser?.created_at || new Date().toISOString()
     };
     return this.currentProfile;
@@ -176,45 +206,28 @@ class AuthService {
   isAdmin(user = this.currentUser, profile = this.currentProfile) {
     if (!user) return false;
 
-    // Strict role check: If profile explicitly specifies 'member', reject admin privileges
-    // unless email is specifically on the admin whitelist
-    if (profile && profile.role === 'member') {
-      const email = (user.email || '').toLowerCase().trim();
-      const envAdminEmails = (import.meta.env.VITE_ADMIN_EMAILS || import.meta.env.VITE_ADMIN_EMAIL || '')
-        .toLowerCase()
-        .split(',')
-        .map((e) => e.trim())
-        .filter(Boolean);
-
-      if (!envAdminEmails.includes(email) && !email.startsWith('admin@') && !email.startsWith('superadmin@') && email !== 'admin@aitools.store') {
-        return false;
-      }
-    }
-
-    // 1. Explicit role flag in database profile or auth user metadata
-    if (profile?.role === 'admin' || profile?.is_admin === true) return true;
-    if (user?.user_metadata?.role === 'admin' || user?.app_metadata?.role === 'admin') return true;
-
-    // 2. Email-based administrator matching
     const email = (user.email || '').toLowerCase().trim();
-    if (!email) return false;
-
-    const envAdminEmails = (import.meta.env.VITE_ADMIN_EMAILS || import.meta.env.VITE_ADMIN_EMAIL || '')
+    const envAdminEmails = (getEnv('VITE_ADMIN_EMAILS', '') || getEnv('VITE_ADMIN_EMAIL', ''))
       .toLowerCase()
       .split(',')
       .map((e) => e.trim())
       .filter(Boolean);
 
-    if (envAdminEmails.includes(email)) return true;
-
+    // 1. Check known administrator emails directly
     if (
+      email === 'numanali1n@gmail.com' ||
       email.startsWith('admin@') ||
       email.startsWith('superadmin@') ||
       email === 'admin@aitools.store' ||
-      email === 'admin@aitools.vip'
+      email === 'admin@aitools.vip' ||
+      envAdminEmails.includes(email)
     ) {
       return true;
     }
+
+    // 2. Explicit role flag in database profile or auth user metadata
+    if (profile?.role === 'admin' || profile?.is_admin === true) return true;
+    if (user?.user_metadata?.role === 'admin' || user?.app_metadata?.role === 'admin') return true;
 
     // 3. Explicit admin session token
     if (localStorage.getItem(ADMIN_AUTH_KEY) === 'true') {
@@ -411,13 +424,14 @@ class AuthService {
 
         // Directly insert/upsert into public.profiles
         const isAdmin =
+          cleanEmail.toLowerCase() === 'numanali1n@gmail.com' ||
           cleanEmail.toLowerCase().startsWith('admin@') ||
           cleanEmail.toLowerCase().startsWith('superadmin@') ||
           cleanEmail.toLowerCase() === 'admin@aitools.store' ||
           cleanEmail.toLowerCase() === 'admin@aitools.vip';
 
         try {
-          await supabase.from('profiles').upsert({
+          const { error: upsertErr } = await supabase.from('profiles').upsert({
             id: userObj.id,
             full_name: cleanName,
             email: cleanEmail,
@@ -425,6 +439,9 @@ class AuthService {
             role: isAdmin ? 'admin' : 'member',
             preferred_language: 'en'
           });
+          if (upsertErr) {
+            console.warn('[AI Tools Store Auth] Profile upsert notice:', upsertErr.message || upsertErr);
+          }
         } catch (pErr) {
           console.warn('[AI Tools Store Auth] Profile upsert warning (trigger may handle):', pErr);
         }

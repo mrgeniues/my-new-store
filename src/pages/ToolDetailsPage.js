@@ -7,6 +7,8 @@ import { renderFooter } from '../components/Footer.js';
 import { getToolIconSvg, buildWhatsAppLink } from '../utils/helpers.js';
 import { requireAuth } from '../utils/authGuard.js';
 import { t, getLocalizedTool } from '../i18n/i18n.js';
+import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
+import { authService } from '../lib/auth.js';
 
 export async function renderToolDetailsPage(root, { pathParams }) {
   const toolId = pathParams?.id;
@@ -205,7 +207,25 @@ export async function renderToolDetailsPage(root, { pathParams }) {
     buyNowBtn.onclick = (e) => {
       e.preventDefault();
       const buyUrl = buyNowBtn.getAttribute('href');
-      requireAuth(() => {
+      requireAuth(async (authResult) => {
+        if (isSupabaseConfigured) {
+          try {
+            const user = authResult?.user || authService.currentUser;
+            await supabase.from('orders').insert([
+              {
+                tool_id: tool.id || null,
+                tool_name: tool.name || 'AI Tool',
+                price: tool.price || '$19 /month',
+                user_id: user?.id || null,
+                user_email: user?.email || 'guest@anonymous.com',
+                status: 'inquiry_whatsapp',
+                created_at: new Date().toISOString()
+              }
+            ]);
+          } catch (err) {
+            console.warn('[ToolDetailsPage] Order record error:', err);
+          }
+        }
         window.open(buyUrl, '_blank', 'noopener,noreferrer');
       }, { defaultTab: 'signup' });
     };

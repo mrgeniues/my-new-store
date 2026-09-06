@@ -1,5 +1,5 @@
 // AI Tools Store - Secure Supabase Admin Panel with Complete Management
-import { supabase, isSupabaseConfigured, uploadToolImage } from '../lib/supabase.js';
+import { supabase, isSupabaseConfigured, uploadToolImage, defaultWhatsappUrl, getEnv } from '../lib/supabase.js';
 import { authService } from '../lib/auth.js';
 import { toolsApi } from '../api/toolsApi.js';
 import { renderNavbar, attachNavbarEvents } from '../components/Navbar.js';
@@ -509,12 +509,12 @@ export async function renderAdminDashboardPage(root) {
                 type="text" 
                 id="settings-whatsapp-url" 
                 class="form-input" 
-                value="${import.meta.env.VITE_DEFAULT_WHATSAPP_URL || 'https://chat.whatsapp.com/invite/aitools-store-vip'}" 
+                value="${defaultWhatsappUrl}" 
                 readonly 
                 style="flex: 1;"
               />
               <a 
-                href="${import.meta.env.VITE_DEFAULT_WHATSAPP_URL || 'https://chat.whatsapp.com/invite/aitools-store-vip'}" 
+                href="${defaultWhatsappUrl}" 
                 target="_blank" 
                 class="btn btn-secondary" 
                 style="padding: 0.65rem 1.2rem; font-size: 0.85rem; white-space: nowrap; text-decoration: none;"
@@ -523,7 +523,7 @@ export async function renderAdminDashboardPage(root) {
               </a>
             </div>
             <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.35rem;">
-              Configured in your <code style="color: var(--accent-cyan);">.env</code> file as <code style="color: var(--accent-cyan);">VITE_DEFAULT_WHATSAPP_URL</code>.
+              Configured in your <code style="color: var(--accent-cyan);">.env</code> file or Hostinger panel as <code style="color: var(--accent-cyan);">VITE_DEFAULT_WHATSAPP_URL</code>.
             </p>
           </div>
 
@@ -532,7 +532,7 @@ export async function renderAdminDashboardPage(root) {
             <input 
               type="text" 
               class="form-input" 
-              value="${import.meta.env.VITE_SUPABASE_URL || 'https://rqemoitjanmxsmcmveso.supabase.co'}" 
+              value="${getEnv('VITE_SUPABASE_URL', 'https://rqemoitjanmxsmcmveso.supabase.co')}" 
               readonly 
             />
           </div>

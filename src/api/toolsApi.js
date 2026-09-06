@@ -1,6 +1,6 @@
 // AI Tools Store - Supabase Data Access Service
 // Single source of truth: Supabase PostgreSQL database
-import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
+import { supabase, isSupabaseConfigured, defaultWhatsappUrl } from '../lib/supabase.js';
 
 class ToolsApiService {
   // Normalize a Supabase record into standard camelCase/snake_case hybrid for frontend
@@ -23,7 +23,7 @@ class ToolsApiService {
       videoUrl: row.tutorial_video_url || '',
       tutorialVideoUrl: row.tutorial_video_url || '',
       toolUrl: row.tool_url || '#',
-      whatsappUrl: row.whatsapp_url || import.meta.env.VITE_DEFAULT_WHATSAPP_URL || 'https://chat.whatsapp.com/invite/aitools-store-vip',
+      whatsappUrl: row.whatsapp_url || defaultWhatsappUrl || 'https://chat.whatsapp.com/invite/aitools-store-vip',
       rating: typeof row.rating === 'number' ? row.rating : 4.8,
       userCount: row.users_count || '10.5K',
       themeColor: row.theme_color || 'blue',
