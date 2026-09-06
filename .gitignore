@@ -4,7 +4,7 @@ node_modules/
 .pnp.js
 
 # Production build output
-dist/
+# dist/ (included for Hostinger deployment)
 dist-ssr/
 
 # Environment Variables (Keep your private keys safe!)

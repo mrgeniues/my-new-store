@@ -1,8 +1,7 @@
-// AI Tools Store - Supabase Authentication & Profile Service with Resilient Session Fallback
+// AI Tools Store - Supabase Authentication & Profile Service (Direct Database Integration)
 import { supabase, isSupabaseConfigured, getEnv } from './supabase.js';
 
 const STORAGE_SESSION_KEY = 'ai_tools_user_session_v1';
-const STORAGE_USERS_KEY = 'ai_tools_users_store_v1';
 const ADMIN_AUTH_KEY = 'ai_tools_admin_authorized';
 const ADMIN_EMAIL_KEY = 'ai_tools_admin_email';
 
@@ -12,37 +11,67 @@ class AuthService {
     this.currentProfile = null;
     this.listeners = new Set();
 
-    // 1. First restore session from local storage if present
-    this.restoreLocalSession();
+    // 1. Purge any legacy fake/dummy accounts created during offline testing
+    this.purgeLegacyDummyAccounts();
 
-    // 2. If Supabase is configured with active keys, connect to Supabase Auth
-    if (isSupabaseConfigured) {
-      // Check Supabase session
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.user) {
-          this.currentUser = session.user;
-          this.fetchProfile(this.currentUser.id);
-          this.saveLocalSession(this.currentUser, this.currentProfile);
-        }
-        this.notifyListeners();
-      }).catch((e) => {
-        console.warn('[AI Tools Store Auth] Supabase session check notice:', e);
-      });
+    // 2. Restore active verified session from Supabase
+    this.initSupabaseAuth();
+  }
 
-      // Listen for Supabase auth state changes
-      supabase.auth.onAuthStateChange(async (event, session) => {
-        if (session?.user) {
-          this.currentUser = session.user;
-          await this.fetchProfile(this.currentUser.id);
-          this.saveLocalSession(this.currentUser, this.currentProfile);
-        } else if (event === 'SIGNED_OUT') {
-          this.currentUser = null;
-          this.currentProfile = null;
-          this.clearLocalSession();
+  // Purge any local dummy user IDs that start with 'usr_'
+  purgeLegacyDummyAccounts() {
+    try {
+      localStorage.removeItem('ai_tools_users_store_v1');
+      const raw = localStorage.getItem(STORAGE_SESSION_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const userId = parsed?.user?.id || '';
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+        if (!isUuid) {
+          localStorage.removeItem(STORAGE_SESSION_KEY);
+          localStorage.removeItem(ADMIN_AUTH_KEY);
+          localStorage.removeItem(ADMIN_EMAIL_KEY);
         }
-        this.notifyListeners();
-      });
+      }
+    } catch (e) {
+      // Ignore
     }
+  }
+
+  async initSupabaseAuth() {
+    if (!isSupabaseConfigured) {
+      console.warn('[AI Tools Store Auth] Supabase is not configured. User accounts will not work without Supabase.');
+      return;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        this.currentUser = session.user;
+        await this.fetchProfile(this.currentUser.id);
+        this.saveLocalSession(this.currentUser, this.currentProfile);
+      } else {
+        // Double check cached session if network is slow
+        this.restoreLocalSession();
+      }
+      this.notifyListeners();
+    } catch (err) {
+      console.warn('[AI Tools Store Auth] getSession error:', err);
+    }
+
+    // Listen for real-time auth events from Supabase
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        this.currentUser = session.user;
+        await this.fetchProfile(this.currentUser.id);
+        this.saveLocalSession(this.currentUser, this.currentProfile);
+      } else if (event === 'SIGNED_OUT') {
+        this.currentUser = null;
+        this.currentProfile = null;
+        this.clearLocalSession();
+      }
+      this.notifyListeners();
+    });
   }
 
   restoreLocalSession() {
@@ -50,28 +79,14 @@ class AuthService {
       const raw = localStorage.getItem(STORAGE_SESSION_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed?.user) {
+        const userId = parsed?.user?.id || '';
+        // Only restore if user has a valid Supabase UUID
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+        if (isUuid && parsed?.user) {
           this.currentUser = parsed.user;
-          const userEmail = (parsed.user.email || '').toLowerCase();
-          const isAdminUser =
-            userEmail === 'numanali1n@gmail.com' ||
-            userEmail.startsWith('admin@') ||
-            userEmail.startsWith('superadmin@') ||
-            userEmail === 'admin@aitools.store' ||
-            userEmail === 'admin@aitools.vip' ||
-            localStorage.getItem(ADMIN_AUTH_KEY) === 'true';
-
-          this.currentProfile = parsed.profile || {
-            id: parsed.user.id,
-            full_name: parsed.user.user_metadata?.full_name || 'VIP Member',
-            email: parsed.user.email || '',
-            whatsapp_number: parsed.user.user_metadata?.whatsapp_number || '',
-            role: isAdminUser ? 'admin' : 'member'
-          };
-
-          if (isAdminUser) {
-            this.currentProfile.role = 'admin';
-          }
+          this.currentProfile = parsed.profile || null;
+        } else {
+          this.clearLocalSession();
         }
       }
     } catch (e) {
@@ -81,6 +96,7 @@ class AuthService {
 
   saveLocalSession(user, profile) {
     try {
+      if (!user || !user.id) return;
       localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify({ user, profile }));
     } catch (e) {
       console.warn('[AI Tools Store Auth] Could not save local session:', e);
@@ -92,6 +108,7 @@ class AuthService {
       localStorage.removeItem(STORAGE_SESSION_KEY);
       localStorage.removeItem(ADMIN_AUTH_KEY);
       localStorage.removeItem(ADMIN_EMAIL_KEY);
+      localStorage.removeItem('ai_tools_users_store_v1');
     } catch (e) {
       console.warn('[AI Tools Store Auth] Could not clear local session:', e);
     }
@@ -99,7 +116,6 @@ class AuthService {
 
   subscribe(listener) {
     this.listeners.add(listener);
-    // Immediately call listener with current state
     try {
       listener({ user: this.currentUser, profile: this.currentProfile });
     } catch (err) {
@@ -120,63 +136,53 @@ class AuthService {
   }
 
   async fetchProfile(userId) {
-    if (!userId) return null;
+    if (!userId || !isSupabaseConfigured) return null;
 
-    if (isSupabaseConfigured) {
-      try {
-        const { data, error } = await supabase
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (!error && data) {
+        this.currentProfile = data;
+        this.saveLocalSession(this.currentUser, this.currentProfile);
+        return this.currentProfile;
+      }
+
+      // If user exists in Auth but not yet in profiles, insert it into profiles
+      if (this.currentUser) {
+        const userMeta = this.currentUser.user_metadata || {};
+        const email = (this.currentUser.email || '').toLowerCase().trim();
+        const fullName = userMeta.full_name || email.split('@')[0] || 'VIP Member';
+        const phone = userMeta.whatsapp_number || '';
+        const isUserAdmin = this.isAdmin(this.currentUser);
+
+        const { data: newProfile, error: upsertErr } = await supabase
           .from('profiles')
-          .select('*')
-          .eq('id', userId)
+          .upsert({
+            id: userId,
+            full_name: fullName,
+            email: email,
+            whatsapp_number: phone,
+            role: isUserAdmin ? 'admin' : 'member',
+            preferred_language: 'en',
+            last_sign_in_at: new Date().toISOString()
+          })
+          .select()
           .maybeSingle();
 
-        if (!error && data) {
-          this.currentProfile = data;
+        if (!upsertErr && newProfile) {
+          this.currentProfile = newProfile;
           this.saveLocalSession(this.currentUser, this.currentProfile);
           return this.currentProfile;
         }
-
-        // Auto-heal missing profile row in Supabase:
-        if (this.currentUser) {
-          const userMeta = this.currentUser.user_metadata || {};
-          const email = (this.currentUser.email || '').toLowerCase().trim();
-          const fullName = userMeta.full_name || email.split('@')[0] || 'VIP Member';
-          const phone = userMeta.whatsapp_number || '';
-          const isUserAdmin = this.isAdmin(this.currentUser);
-
-          const { data: newProfile, error: upsertErr } = await supabase
-            .from('profiles')
-            .upsert({
-              id: userId,
-              full_name: fullName,
-              email: email,
-              whatsapp_number: phone,
-              role: isUserAdmin ? 'admin' : 'member',
-              preferred_language: 'en'
-            })
-            .select()
-            .maybeSingle();
-
-          if (!upsertErr && newProfile) {
-            this.currentProfile = newProfile;
-            this.saveLocalSession(this.currentUser, this.currentProfile);
-            return this.currentProfile;
-          }
-        }
-      } catch (e) {
-        console.warn('Could not fetch/heal Supabase profile:', e);
       }
+    } catch (e) {
+      console.warn('Could not fetch Supabase profile:', e);
     }
 
-    // Fallback profile
-    this.currentProfile = this.currentProfile || {
-      id: userId,
-      full_name: this.currentUser?.user_metadata?.full_name || 'VIP Member',
-      email: this.currentUser?.email || '',
-      whatsapp_number: this.currentUser?.user_metadata?.whatsapp_number || '',
-      role: this.isAdmin(this.currentUser) ? 'admin' : 'member',
-      created_at: this.currentUser?.created_at || new Date().toISOString()
-    };
     return this.currentProfile;
   }
 
@@ -191,7 +197,7 @@ class AuthService {
           return this.currentUser;
         }
       } catch (e) {
-        console.warn('Supabase getSession fallback:', e);
+        console.warn('Supabase getSession error:', e);
       }
     }
 
@@ -200,7 +206,7 @@ class AuthService {
   }
 
   isAuthenticated() {
-    return Boolean(this.currentUser);
+    return Boolean(this.currentUser && this.currentUser.id);
   }
 
   isAdmin(user = this.currentUser, profile = this.currentProfile) {
@@ -213,7 +219,7 @@ class AuthService {
       .map((e) => e.trim())
       .filter(Boolean);
 
-    // 1. Check known administrator emails directly
+    // 1. Check verified administrator emails
     if (
       email === 'numanali1n@gmail.com' ||
       email.startsWith('admin@') ||
@@ -225,11 +231,11 @@ class AuthService {
       return true;
     }
 
-    // 2. Explicit role flag in database profile or auth user metadata
+    // 2. Role in database profile
     if (profile?.role === 'admin' || profile?.is_admin === true) return true;
     if (user?.user_metadata?.role === 'admin' || user?.app_metadata?.role === 'admin') return true;
 
-    // 3. Explicit admin session token
+    // 3. Admin session token
     if (localStorage.getItem(ADMIN_AUTH_KEY) === 'true') {
       const authEmail = localStorage.getItem(ADMIN_EMAIL_KEY);
       if (authEmail && authEmail.toLowerCase() === email) {
@@ -259,117 +265,63 @@ class AuthService {
     this.notifyListeners();
   }
 
+  // Fetch registered users directly from Supabase public.profiles table
   async getRegisteredUsers() {
-    const userMap = new Map();
-
-    // 1. Fetch from Supabase profiles if active
-    if (isSupabaseConfigured) {
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (!error && Array.isArray(data)) {
-          data.forEach((p) => {
-            const email = (p.email || '').toLowerCase();
-            const isAdmin =
-              p.role === 'admin' ||
-              email.startsWith('admin@') ||
-              email.startsWith('superadmin@') ||
-              email === 'admin@aitools.store';
-
-            userMap.set(email, {
-              id: p.id,
-              full_name: p.full_name || 'VIP Member',
-              email: p.email || '',
-              whatsapp_number: p.whatsapp_number || '',
-              preferred_language: p.preferred_language || 'en',
-              role: isAdmin ? 'admin' : 'member',
-              last_sign_in_at: p.last_sign_in_at || null,
-              created_at: p.created_at || new Date().toISOString()
-            });
-          });
-        }
-      } catch (err) {
-        console.warn('Supabase profiles query note:', err);
-      }
+    if (!isSupabaseConfigured) {
+      console.warn('[AI Tools Store Auth] Supabase not configured for getRegisteredUsers.');
+      return [];
     }
 
-    // 2. Fetch from local users storage
     try {
-      const localUsers = JSON.parse(localStorage.getItem(STORAGE_USERS_KEY) || '[]');
-      localUsers.forEach((rec) => {
-        const email = (rec.email || rec.user?.email || '').toLowerCase();
-        if (email && !userMap.has(email)) {
-          const isAdmin =
-            rec.profile?.role === 'admin' ||
-            email.startsWith('admin@') ||
-            email.startsWith('superadmin@') ||
-            email === 'admin@aitools.store';
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-          userMap.set(email, {
-            id: rec.user?.id || 'usr_' + Math.random().toString(36).substring(2, 7),
-            full_name: rec.profile?.full_name || rec.user?.user_metadata?.full_name || 'VIP Member',
-            email: rec.email || rec.user?.email || '',
-            whatsapp_number: rec.profile?.whatsapp_number || rec.user?.user_metadata?.whatsapp_number || '',
-            preferred_language: 'en',
-            role: isAdmin ? 'admin' : 'member',
-            created_at: rec.user?.created_at || new Date().toISOString()
-          });
-        }
-      });
-    } catch (e) {
-      console.warn('Local users store note:', e);
-    }
-
-    // 3. Ensure current user is in the list
-    if (this.currentUser) {
-      const myEmail = (this.currentUser.email || '').toLowerCase();
-      if (myEmail && !userMap.has(myEmail)) {
-        userMap.set(myEmail, {
-          id: this.currentUser.id,
-          full_name: this.currentProfile?.full_name || 'VIP Member',
-          email: this.currentUser.email || '',
-          whatsapp_number: this.currentProfile?.whatsapp_number || '',
-          preferred_language: 'en',
-          role: this.isAdmin() ? 'admin' : 'member',
-          created_at: this.currentUser.created_at || new Date().toISOString()
-        });
-      } else if (myEmail && userMap.has(myEmail) && this.isAdmin()) {
-        const u = userMap.get(myEmail);
-        u.role = 'admin';
+      if (error) {
+        console.error('[AI Tools Store Auth] Supabase profiles query error:', error.message);
+        return [];
       }
-    }
 
-    // Return as array sorted with Admins first, then by date
-    return Array.from(userMap.values()).sort((a, b) => {
-      if (a.role === 'admin' && b.role !== 'admin') return -1;
-      if (b.role === 'admin' && a.role !== 'admin') return 1;
-      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
-    });
+      return (data || []).map((p) => {
+        const email = (p.email || '').toLowerCase();
+        const isAdmin =
+          p.role === 'admin' ||
+          email === 'numanali1n@gmail.com' ||
+          email.startsWith('admin@') ||
+          email.startsWith('superadmin@') ||
+          email === 'admin@aitools.store';
+
+        return {
+          id: p.id,
+          full_name: p.full_name || 'VIP Member',
+          email: p.email || '',
+          whatsapp_number: p.whatsapp_number || '',
+          preferred_language: p.preferred_language || 'en',
+          role: isAdmin ? 'admin' : 'member',
+          last_sign_in_at: p.last_sign_in_at || null,
+          created_at: p.created_at || new Date().toISOString()
+        };
+      });
+    } catch (err) {
+      console.error('[AI Tools Store Auth] Error fetching profiles:', err);
+      return [];
+    }
   }
 
+  // Update user role in Supabase public.profiles
   async updateUserRole(userId, newRole) {
-    if (isSupabaseConfigured) {
-      try {
-        await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
-      } catch (err) {
-        console.warn('Supabase role update note:', err);
-      }
+    if (!isSupabaseConfigured) {
+      throw new Error('Supabase is not configured.');
     }
 
-    // Update in local users store
-    try {
-      const usersList = JSON.parse(localStorage.getItem(STORAGE_USERS_KEY) || '[]');
-      const idx = usersList.findIndex((u) => u.user?.id === userId || u.profile?.id === userId);
-      if (idx >= 0) {
-        if (!usersList[idx].profile) usersList[idx].profile = {};
-        usersList[idx].profile.role = newRole;
-        localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(usersList));
-      }
-    } catch (e) {
-      console.warn('Local role update note:', e);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ role: newRole, updated_at: new Date().toISOString() })
+      .eq('id', userId);
+
+    if (error) {
+      throw new Error(error.message);
     }
 
     if (this.currentUser?.id === userId && this.currentProfile) {
@@ -387,6 +339,7 @@ class AuthService {
     return true;
   }
 
+  // Sign up directly into Supabase Auth and public.profiles
   async signUp({ fullName, email, whatsappNumber, password }) {
     const cleanEmail = (email || '').trim();
     const cleanName = (fullName || '').trim() || 'VIP Member';
@@ -399,205 +352,126 @@ class AuthService {
       throw new Error('Password must be at least 6 characters long.');
     }
 
-    let userObj = null;
-    let profileObj = null;
-    let needsConfirmation = false;
+    if (!isSupabaseConfigured) {
+      throw new Error('Supabase backend is not connected. Please check your Supabase configuration.');
+    }
 
-    if (isSupabaseConfigured) {
-      const { data, error } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password,
-        options: {
-          data: {
-            full_name: cleanName,
-            whatsapp_number: cleanPhone
-          }
-        }
-      });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      if (data?.user) {
-        userObj = data.user;
-
-        // Directly insert/upsert into public.profiles
-        const isAdmin =
-          cleanEmail.toLowerCase() === 'numanali1n@gmail.com' ||
-          cleanEmail.toLowerCase().startsWith('admin@') ||
-          cleanEmail.toLowerCase().startsWith('superadmin@') ||
-          cleanEmail.toLowerCase() === 'admin@aitools.store' ||
-          cleanEmail.toLowerCase() === 'admin@aitools.vip';
-
-        try {
-          const { error: upsertErr } = await supabase.from('profiles').upsert({
-            id: userObj.id,
-            full_name: cleanName,
-            email: cleanEmail,
-            whatsapp_number: cleanPhone,
-            role: isAdmin ? 'admin' : 'member',
-            preferred_language: 'en'
-          });
-          if (upsertErr) {
-            console.warn('[AI Tools Store Auth] Profile upsert notice:', upsertErr.message || upsertErr);
-          }
-        } catch (pErr) {
-          console.warn('[AI Tools Store Auth] Profile upsert warning (trigger may handle):', pErr);
-        }
-
-        // If session was returned immediately (Confirm email is OFF in Supabase)
-        if (data.session) {
-          this.currentUser = userObj;
-          await this.fetchProfile(userObj.id);
-          this.saveLocalSession(this.currentUser, this.currentProfile);
-          this.notifyListeners();
-          return { user: this.currentUser, profile: this.currentProfile, session: data.session };
-        } else {
-          // If session is null, email confirmation is active in Supabase Auth settings
-          needsConfirmation = true;
-        }
-      }
-    } else {
-      // Offline fallback only when Supabase credentials are not in .env
-      const userId = 'usr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7);
-      userObj = {
-        id: userId,
-        email: cleanEmail,
-        created_at: new Date().toISOString(),
-        user_metadata: {
+    // 1. Create account in Supabase Auth
+    const { data, error } = await supabase.auth.signUp({
+      email: cleanEmail,
+      password,
+      options: {
+        data: {
           full_name: cleanName,
           whatsapp_number: cleanPhone
         }
-      };
+      }
+    });
+
+    if (error) {
+      throw new Error(error.message);
     }
 
-    const isAdminUser =
+    if (!data?.user) {
+      throw new Error('Failed to create account in Supabase. Please try again.');
+    }
+
+    const userObj = data.user;
+    const isAdmin =
+      cleanEmail.toLowerCase() === 'numanali1n@gmail.com' ||
       cleanEmail.toLowerCase().startsWith('admin@') ||
       cleanEmail.toLowerCase().startsWith('superadmin@') ||
       cleanEmail.toLowerCase() === 'admin@aitools.store' ||
       cleanEmail.toLowerCase() === 'admin@aitools.vip';
 
-    profileObj = {
-      id: userObj.id,
-      full_name: cleanName,
-      email: cleanEmail,
-      whatsapp_number: cleanPhone,
-      role: isAdminUser ? 'admin' : 'member',
-      created_at: userObj.created_at || new Date().toISOString()
-    };
+    // 2. Insert into Supabase public.profiles table
+    let profileObj = null;
+    try {
+      const { data: insertedProfile, error: upsertErr } = await supabase
+        .from('profiles')
+        .upsert({
+          id: userObj.id,
+          full_name: cleanName,
+          email: cleanEmail,
+          whatsapp_number: cleanPhone,
+          role: isAdmin ? 'admin' : 'member',
+          preferred_language: 'en',
+          last_sign_in_at: new Date().toISOString()
+        })
+        .select()
+        .single();
 
-    if (needsConfirmation) {
-      return {
-        user: userObj,
-        profile: profileObj,
-        needsConfirmation: true,
-        message: 'Account created! Please sign in with your email and password.'
-      };
+      if (upsertErr) {
+        console.warn('[AI Tools Store Auth] Profile upsert notice:', upsertErr.message);
+      } else {
+        profileObj = insertedProfile;
+      }
+    } catch (pErr) {
+      console.warn('[AI Tools Store Auth] Profile upsert error:', pErr);
     }
 
-    this.currentUser = userObj;
-    this.currentProfile = profileObj;
-    this.saveLocalSession(userObj, profileObj);
-    this.notifyListeners();
+    // If session returned immediately (Confirm email is OFF in Supabase)
+    if (data.session) {
+      this.currentUser = userObj;
+      this.currentProfile = profileObj || await this.fetchProfile(userObj.id);
+      this.saveLocalSession(this.currentUser, this.currentProfile);
+      this.notifyListeners();
+      return { user: this.currentUser, profile: this.currentProfile, session: data.session };
+    }
 
-    return { user: userObj, profile: profileObj };
+    // If email confirmation is required by Supabase Auth settings
+    return {
+      user: userObj,
+      profile: profileObj,
+      needsConfirmation: true,
+      message: 'Account registered in Supabase! If email confirmation is enabled, please verify your email before signing in.'
+    };
   }
 
+  // Sign in directly through Supabase Auth
   async signIn({ email, password }) {
     const rawInput = (email || '').trim();
     if (!rawInput) {
-      throw new Error('Please enter your email or username.');
+      throw new Error('Please enter your email address.');
     }
     if (!password) {
       throw new Error('Please enter your password.');
     }
 
-    let userObj = null;
-    let profileObj = null;
-
-    const isPhone = !rawInput.includes('@') && /^[\d\+\s\-]{6,}$/.test(rawInput);
-    const cleanDigits = rawInput.replace(/\D/g, '');
-    const cleanEmail = rawInput;
-
-    if (isSupabaseConfigured) {
-      const emailToTry = isPhone ? `${cleanDigits}@phone.aitools.vip` : cleanEmail;
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: emailToTry,
-        password
-      });
-
-      if (error) {
-        if (error.message && error.message.toLowerCase().includes('email not confirmed')) {
-          throw new Error('Email not confirmed. Please check your inbox or disable "Confirm email" in Supabase Auth Settings.');
-        }
-        throw new Error(error.message || 'Invalid email or password.');
-      }
-
-      if (data?.user) {
-        userObj = data.user;
-        await this.fetchProfile(userObj.id);
-        profileObj = this.currentProfile;
-      }
-    } else {
-      // Offline fallback: Check local registered users store by email OR phone number
-      try {
-        const usersList = JSON.parse(localStorage.getItem(STORAGE_USERS_KEY) || '[]');
-        const matched = usersList.find((u) => {
-          const uEmail = (u.email || u.user?.email || '').toLowerCase();
-          const uPhone = (u.profile?.whatsapp_number || u.whatsapp_number || u.user?.user_metadata?.whatsapp_number || '').replace(/\D/g, '');
-          
-          if (!isPhone && uEmail === cleanEmail.toLowerCase()) return true;
-          if (isPhone && cleanDigits && uPhone && (uPhone.includes(cleanDigits) || cleanDigits.includes(uPhone))) return true;
-          if (uEmail === cleanEmail.toLowerCase()) return true;
-          return false;
-        });
-
-        if (matched) {
-          userObj = matched.user;
-          profileObj = matched.profile;
-        }
-      } catch (e) {
-        console.warn('Could not read users store:', e);
-      }
-
-      if (!userObj) {
-        throw new Error('Account not found. Please sign up first.');
-      }
+    if (!isSupabaseConfigured) {
+      throw new Error('Supabase backend is not connected.');
     }
 
-    const activeEmail = (userObj?.email || cleanEmail || '').toLowerCase();
-    const isAdminUser =
-      activeEmail.startsWith('admin@') ||
-      activeEmail.startsWith('superadmin@') ||
-      activeEmail === 'admin@aitools.store' ||
-      activeEmail === 'admin@aitools.vip' ||
-      localStorage.getItem(ADMIN_AUTH_KEY) === 'true';
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: rawInput,
+      password
+    });
 
+    if (error) {
+      if (error.message && error.message.toLowerCase().includes('email not confirmed')) {
+        throw new Error('Email not confirmed yet. In Supabase Dashboard > Authentication > Providers > Email, turn off "Confirm email" or check your inbox.');
+      }
+      throw new Error(error.message || 'Invalid email or password.');
+    }
+
+    if (!data?.user) {
+      throw new Error('Sign in failed: No user returned from Supabase.');
+    }
+
+    this.currentUser = data.user;
+    this.currentProfile = await this.fetchProfile(data.user.id);
+
+    const isAdminUser = this.isAdmin(this.currentUser, this.currentProfile);
     if (isAdminUser) {
       localStorage.setItem(ADMIN_AUTH_KEY, 'true');
-      localStorage.setItem(ADMIN_EMAIL_KEY, userObj?.email || cleanEmail);
-      if (profileObj) profileObj.role = 'admin';
-    }
-
-    this.currentUser = userObj;
-    this.currentProfile = profileObj || {
-      id: userObj.id,
-      full_name: userObj.user_metadata?.full_name || 'VIP Member',
-      email: userObj.email,
-      whatsapp_number: userObj.user_metadata?.whatsapp_number || '',
-      role: isAdminUser ? 'admin' : 'member',
-      created_at: userObj.created_at
-    };
-
-    if (isAdminUser) {
-      this.currentProfile.role = 'admin';
+      localStorage.setItem(ADMIN_EMAIL_KEY, this.currentUser.email);
+      if (this.currentProfile) this.currentProfile.role = 'admin';
     }
 
     this.saveLocalSession(this.currentUser, this.currentProfile);
     this.notifyListeners();
 
-    return { user: this.currentUser, profile: this.currentProfile };
+    return { user: this.currentUser, profile: this.currentProfile, session: data.session };
   }
 
   async signOut() {
@@ -609,7 +483,7 @@ class AuthService {
       try {
         await supabase.auth.signOut();
       } catch (e) {
-        console.warn('Supabase signOut notice:', e);
+        console.warn('Supabase signOut error:', e);
       }
     }
 
@@ -619,4 +493,3 @@ class AuthService {
 }
 
 export const authService = new AuthService();
-
