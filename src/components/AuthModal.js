@@ -2,6 +2,7 @@
 import { authService } from '../lib/auth.js';
 import { showToast } from '../utils/helpers.js';
 import { t } from '../i18n/i18n.js';
+import { ALL_COUNTRIES, findCountry } from '../utils/countries.js';
 
 let isModalOpen = false;
 
@@ -54,6 +55,7 @@ export function openAuthModal(options = {}) {
   let cachedFullName = '';
   let cachedPhone = '';
   let cachedCountry = authService.getUserCountry() || 'Pakistan';
+  let selectedDialCountry = findCountry(cachedCountry) || ALL_COUNTRIES[0];
 
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop auth-backdrop-fade';
@@ -182,23 +184,44 @@ export function openAuthModal(options = {}) {
               </div>
             </div>
 
-            <!-- WhatsApp Number (with country code selector) -->
+            <!-- WhatsApp Number (with Searchable Country Code Picker) -->
             <div class="form-group">
-              <label class="auth-field-label" for="auth-whatsapp">${t('auth.whatsappLabel')}</label>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                <label class="auth-field-label" for="auth-whatsapp" style="margin-bottom: 0;">${t('auth.whatsappLabel')}</label>
+                <span style="font-size: 0.72rem; color: var(--accent-cyan);">Auto-selected with country</span>
+              </div>
               <div class="auth-phone-group">
-                <select id="auth-country-code" class="auth-country-select">
-                  <option value="+92" ${cachedCountry === 'Pakistan' ? 'selected' : ''}>🇵🇰 +92</option>
-                  <option value="+91" ${cachedCountry === 'India' ? 'selected' : ''}>🇮🇳 +91</option>
-                  <option value="+971" ${cachedCountry === 'United Arab Emirates' ? 'selected' : ''}>🇦🇪 +971</option>
-                  <option value="+966" ${cachedCountry === 'Saudi Arabia' ? 'selected' : ''}>🇸🇦 +966</option>
-                  <option value="+1" ${['United States', 'Canada'].includes(cachedCountry) ? 'selected' : ''}>🇺🇸 +1</option>
-                  <option value="+44" ${cachedCountry === 'United Kingdom' ? 'selected' : ''}>🇬🇧 +44</option>
-                  <option value="+61" ${cachedCountry === 'Australia' ? 'selected' : ''}>🇦🇺 +61</option>
-                  <option value="+49" ${cachedCountry === 'Germany' ? 'selected' : ''}>🇩🇪 +49</option>
-                  <option value="+33">🇫🇷 +33</option>
-                  <option value="+65">🇸🇬 +65</option>
-                  <option value="+81">🇯🇵 +81</option>
-                </select>
+                <!-- Searchable Country Dial Code Picker Popover -->
+                <div class="auth-dial-code-wrapper" id="auth-dial-code-wrapper">
+                  <button type="button" id="auth-dial-code-btn" class="auth-dial-code-btn" aria-haspopup="true" title="Click to search any country code">
+                    <span id="auth-dial-flag" class="dial-flag">${selectedDialCountry.flag}</span>
+                    <span id="auth-dial-code-val" class="dial-code">${selectedDialCountry.code}</span>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                  </button>
+
+                  <input type="hidden" id="auth-selected-dial-code" value="${selectedDialCountry.code}" />
+
+                  <!-- Real-Time Searchable Countries Dropdown Popover -->
+                  <div id="auth-country-picker-dropdown" class="auth-country-picker-dropdown" style="display: none;">
+                    <div class="country-picker-search-wrap">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                      </svg>
+                      <input 
+                        type="text" 
+                        id="country-picker-search" 
+                        class="country-picker-search-input" 
+                        placeholder="Search country or code (e.g. Oman, +968)..." 
+                        autocomplete="off"
+                      />
+                    </div>
+                    <div id="country-picker-list" class="country-picker-list"></div>
+                  </div>
+                </div>
+
                 <div class="auth-input-wrapper" style="flex: 1;">
                   <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
@@ -376,23 +399,147 @@ export function openAuthModal(options = {}) {
       };
     }
 
-    // Country Selection changes: Auto-sync corresponding phone dial code
+    // Update selected dial code display
+    function updateDialCodeSelection(c) {
+      if (!c) return;
+      selectedDialCountry = c;
+      const flagEl = backdrop.querySelector('#auth-dial-flag');
+      const codeEl = backdrop.querySelector('#auth-dial-code-val');
+      const hiddenCode = backdrop.querySelector('#auth-selected-dial-code');
+      if (flagEl) flagEl.textContent = c.flag;
+      if (codeEl) codeEl.textContent = c.code;
+      if (hiddenCode) hiddenCode.value = c.code;
+    }
+
+    // Render filtered items in country picker
+    function renderCountryPickerItems(filterText = '') {
+      const listEl = backdrop.querySelector('#country-picker-list');
+      if (!listEl) return;
+      const q = (filterText || '').toLowerCase().trim();
+
+      const filtered = ALL_COUNTRIES.filter((c) => {
+        if (!q) return true;
+        return (
+          c.name.toLowerCase().includes(q) ||
+          c.code.includes(q) ||
+          c.iso.toLowerCase().includes(q)
+        );
+      });
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = `<div class="country-picker-empty">No country found matching "${filterText}"</div>`;
+        return;
+      }
+
+      listEl.innerHTML = filtered
+        .map(
+          (c) => `
+        <button type="button" class="country-picker-item ${c.code === selectedDialCountry.code && c.name === selectedDialCountry.name ? 'selected' : ''}" data-country-name="${c.name}" data-country-code="${c.code}" data-country-flag="${c.flag}">
+          <div class="country-picker-item-left">
+            <span class="country-picker-item-flag">${c.flag}</span>
+            <span class="country-picker-item-name">${c.name}</span>
+          </div>
+          <span class="country-picker-item-code">${c.code}</span>
+        </button>
+      `
+        )
+        .join('');
+
+      listEl.querySelectorAll('.country-picker-item').forEach((item) => {
+        item.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const name = item.dataset.countryName;
+          const code = item.dataset.countryCode;
+          const flag = item.dataset.countryFlag;
+          updateDialCodeSelection({ name, code, flag });
+          closeDialPicker();
+          const phoneInput = backdrop.querySelector('#auth-whatsapp');
+          if (phoneInput) phoneInput.focus();
+        };
+      });
+    }
+
+    function openDialPicker() {
+      const dropdown = backdrop.querySelector('#auth-country-picker-dropdown');
+      const btn = backdrop.querySelector('#auth-dial-code-btn');
+      const searchInput = backdrop.querySelector('#country-picker-search');
+      if (dropdown && btn) {
+        dropdown.style.display = 'flex';
+        btn.classList.add('active');
+        renderCountryPickerItems(searchInput ? searchInput.value : '');
+        if (searchInput) {
+          setTimeout(() => searchInput.focus(), 60);
+        }
+      }
+    }
+
+    function closeDialPicker() {
+      const dropdown = backdrop.querySelector('#auth-country-picker-dropdown');
+      const btn = backdrop.querySelector('#auth-dial-code-btn');
+      if (dropdown && btn) {
+        dropdown.style.display = 'none';
+        btn.classList.remove('active');
+      }
+    }
+
+    // Dial code trigger button click
+    const dialBtn = backdrop.querySelector('#auth-dial-code-btn');
+    if (dialBtn) {
+      dialBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const dropdown = backdrop.querySelector('#auth-country-picker-dropdown');
+        if (dropdown && dropdown.style.display === 'flex') {
+          closeDialPicker();
+        } else {
+          openDialPicker();
+        }
+      };
+    }
+
+    // Real-time search in country picker
+    const searchInput = backdrop.querySelector('#country-picker-search');
+    if (searchInput) {
+      searchInput.oninput = () => {
+        renderCountryPickerItems(searchInput.value);
+      };
+      searchInput.onclick = (e) => e.stopPropagation();
+    }
+
+    // Country Selection changes: Auto-sync dial code & trigger search if "Other/Global"
     const countrySelect = backdrop.querySelector('#auth-country');
-    const phoneCodeSelect = backdrop.querySelector('#auth-country-code');
-    if (countrySelect && phoneCodeSelect) {
+    if (countrySelect) {
       countrySelect.onchange = () => {
         const val = countrySelect.value;
         cachedCountry = val;
-        if (val === 'Pakistan') phoneCodeSelect.value = '+92';
-        else if (val === 'India') phoneCodeSelect.value = '+91';
-        else if (val === 'United Arab Emirates') phoneCodeSelect.value = '+971';
-        else if (val === 'Saudi Arabia') phoneCodeSelect.value = '+966';
-        else if (val === 'United States' || val === 'Canada') phoneCodeSelect.value = '+1';
-        else if (val === 'United Kingdom') phoneCodeSelect.value = '+44';
-        else if (val === 'Australia') phoneCodeSelect.value = '+61';
-        else if (val === 'Germany') phoneCodeSelect.value = '+49';
+
+        if (val === 'Global') {
+          // User clicked "Other Countries / Global (USD)"!
+          // Immediately pop open the searchable country code dropdown so they can pick their country code!
+          openDialPicker();
+          if (searchInput) {
+            searchInput.value = '';
+            renderCountryPickerItems('');
+            searchInput.focus();
+          }
+        } else {
+          // Pre-set country: automatically match and select country code
+          const matched = findCountry(val);
+          if (matched) {
+            updateDialCodeSelection(matched);
+          }
+          closeDialPicker();
+        }
       };
     }
+
+    // Close dial picker on backdrop click outside
+    backdrop.addEventListener('click', (e) => {
+      if (!e.target.closest('#auth-dial-code-wrapper')) {
+        closeDialPicker();
+      }
+    });
 
     // Toggle tabs (both top pill switcher and bottom text links)
     backdrop.querySelectorAll('#tab-btn-signup, #switch-to-signup-link').forEach((btn) => {
@@ -464,13 +611,13 @@ export function openAuthModal(options = {}) {
       if (currentTab === 'signup') {
         const nameInput = backdrop.querySelector('#auth-fullname');
         const countrySelect = backdrop.querySelector('#auth-country');
-        const phoneCodeSelect = backdrop.querySelector('#auth-country-code');
+        const hiddenDialCode = backdrop.querySelector('#auth-selected-dial-code');
         const phoneInput = backdrop.querySelector('#auth-whatsapp');
         const confirmInput = backdrop.querySelector('#auth-confirm-password');
 
         const fullName = nameInput ? nameInput.value.trim() : 'VIP Member';
         const selectedCountry = countrySelect ? countrySelect.value : cachedCountry || 'Pakistan';
-        const countryCode = phoneCodeSelect ? phoneCodeSelect.value : '+92';
+        const countryCode = hiddenDialCode ? hiddenDialCode.value.trim() : (selectedDialCountry?.code || '+92');
         const rawPhone = phoneInput ? phoneInput.value.trim() : '';
         const confirmPassword = confirmInput ? confirmInput.value : '';
 
@@ -490,7 +637,20 @@ export function openAuthModal(options = {}) {
           return;
         }
 
-        const fullPhone = rawPhone ? `${countryCode} ${rawPhone}` : '';
+        // Clean & format phone number without duplicated country code
+        let cleanNum = rawPhone.replace(/\s+/g, '');
+        let fullPhone = '';
+        if (!cleanNum) {
+          fullPhone = '';
+        } else if (cleanNum.startsWith(countryCode)) {
+          fullPhone = cleanNum;
+        } else if (cleanNum.startsWith('+')) {
+          fullPhone = cleanNum;
+        } else if (cleanNum.startsWith('0')) {
+          fullPhone = `${countryCode} ${cleanNum.substring(1)}`;
+        } else {
+          fullPhone = `${countryCode} ${cleanNum}`;
+        }
 
         if (submitBtn) {
           submitBtn.innerHTML = `<span>${t('auth.creatingAccount') || 'Creating account...'}</span>`;

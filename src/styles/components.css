@@ -3271,21 +3271,178 @@
   align-items: center;
 }
 
-.auth-country-select {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+/* Searchable Dial Code Picker for WhatsApp Number */
+.auth-dial-code-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.auth-dial-code-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
-  padding: 0.72rem 0.65rem;
+  padding: 0.72rem 0.85rem;
   color: #ffffff;
   font-family: inherit;
   font-size: 0.88rem;
+  font-weight: 600;
   cursor: pointer;
   outline: none;
+  transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
-.auth-country-select option {
-  background: #0f1422;
+.auth-dial-code-btn:hover,
+.auth-dial-code-btn.active {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.25);
+}
+
+.auth-dial-code-btn .dial-flag {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.auth-dial-code-btn .dial-code {
+  font-family: var(--font-mono);
+  color: var(--text-pure);
+}
+
+.auth-dial-code-btn svg {
+  transition: transform 0.2s ease;
+  color: var(--text-muted);
+}
+
+.auth-dial-code-btn.active svg {
+  transform: rotate(180deg);
+  color: var(--accent-cyan);
+}
+
+/* Dropdown popover */
+.auth-country-picker-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 320px;
+  max-width: 90vw;
+  background: rgba(15, 20, 35, 0.98);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 14px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), 0 0 20px rgba(56, 189, 248, 0.2);
+  z-index: 1000;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Sticky search input */
+.country-picker-search-wrap {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.country-picker-search-wrap svg {
+  color: var(--accent-cyan);
+  flex-shrink: 0;
+}
+
+.country-picker-search-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
   color: #ffffff;
+  font-size: 0.82rem;
+  font-family: inherit;
+}
+
+.country-picker-search-input::placeholder {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+/* Scrollable list */
+.country-picker-list {
+  max-height: 230px;
+  overflow-y: auto;
+  padding: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.country-picker-list::-webkit-scrollbar {
+  width: 5px;
+}
+.country-picker-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+}
+
+.country-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.country-picker-item:hover,
+.country-picker-item.selected {
+  background: rgba(56, 189, 248, 0.15);
+  color: #ffffff;
+}
+
+.country-picker-item-left {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  overflow: hidden;
+}
+
+.country-picker-item-flag {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.country-picker-item-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.country-picker-item-code {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  flex-shrink: 0;
+  margin-left: 0.5rem;
+}
+
+.country-picker-empty {
+  padding: 1rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
 }
 
 /* Primary Submit Pill Button */
