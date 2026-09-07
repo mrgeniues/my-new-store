@@ -22,15 +22,15 @@ export async function renderCategoriesPage(root) {
         ${categories.map((cat) => `
           <a href="#/tools?category=${encodeURIComponent(cat.name)}" class="category-card-large">
             <div class="cat-card-header">
-              <div class="cat-card-icon" style="background: ${cat.color}20; color: ${cat.color}; border: 1px solid ${cat.color}40;">
-                <span>${cat.icon}</span>
+              <div class="cat-card-icon" style="background: ${cat.color}20; color: ${cat.color}; border: 1px solid ${cat.color}40; overflow: hidden; padding: 0;">
+                ${cat.image ? `<img src="${cat.image}" alt="${cat.name}" style="width: 100%; height: 100%; object-fit: cover;" />` : `<span>${cat.icon}</span>`}
               </div>
               <span class="cat-card-count">${cat.count} ${cat.count === 1 ? 'Tool' : 'Tools'}</span>
             </div>
 
             <div>
               <h3>${cat.name}</h3>
-              <p style="margin-top: 0.4rem;">${cat.desc || `Explore premium tools in ${cat.name}.`}</p>
+              <p style="margin-top: 0.4rem;">${cat.description || cat.desc || `Explore premium tools in ${cat.name}.`}</p>
             </div>
 
             <div class="cat-explore-link">

@@ -52,30 +52,48 @@ export const supabase = isSupabaseConfigured
       auth: { persistSession: false }
     });
 
-// Helper to upload tool logo/image to Supabase Storage bucket 'tool-images'
-export async function uploadToolImage(file) {
-  if (!isSupabaseConfigured) {
-    throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.');
+// Helper to upload tool or category image to Supabase Storage bucket 'tool-images'
+// With resilient fallback to Data URL if storage bucket is offline or policy restricted
+export async function uploadToolImage(file, folder = 'logos') {
+  if (!file) throw new Error('No image file selected.');
+
+  // 1. Try Supabase Storage if configured
+  if (isSupabaseConfigured) {
+    try {
+      const fileExt = (file.name || 'image.png').split('.').pop() || 'png';
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+      const filePath = `${folder}/${fileName}`;
+
+      const { data, error } = await supabase.storage
+        .from('tool-images')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (!error && data) {
+        const { data: publicUrlData } = supabase.storage
+          .from('tool-images')
+          .getPublicUrl(filePath);
+
+        if (publicUrlData?.publicUrl) {
+          return publicUrlData.publicUrl;
+        }
+      } else if (error) {
+        console.warn('[Storage] Supabase storage upload notice, using local data URL fallback:', error.message);
+      }
+    } catch (storageErr) {
+      console.warn('[Storage] Supabase storage exception, using local data URL fallback:', storageErr);
+    }
   }
 
-  const fileExt = file.name.split('.').pop();
-  const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
-  const filePath = `logos/${fileName}`;
-
-  const { data, error } = await supabase.storage
-    .from('tool-images')
-    .upload(filePath, file, {
-      cacheControl: '3600',
-      upsert: false
-    });
-
-  if (error) {
-    throw error;
-  }
-
-  const { data: publicUrlData } = supabase.storage
-    .from('tool-images')
-    .getPublicUrl(filePath);
-
-  return publicUrlData.publicUrl;
+  // 2. Resilient fallback: Convert to Data URL (base64) so uploads always work immediately
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Failed to process image file.'));
+    reader.readAsDataURL(file);
+  });
 }
+
+export const uploadImage = uploadToolImage;

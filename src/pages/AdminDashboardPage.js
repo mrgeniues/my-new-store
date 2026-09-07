@@ -159,6 +159,13 @@ export async function renderAdminDashboardPage(root) {
     showToast(`Failed to load tools from Supabase: ${err.message}`, 'error');
   }
 
+  let categories = [];
+  try {
+    categories = await toolsApi.adminGetCategories();
+  } catch (cErr) {
+    console.warn('Could not load categories:', cErr);
+  }
+
   let users = [];
   try {
     users = await authService.getRegisteredUsers();
@@ -168,7 +175,7 @@ export async function renderAdminDashboardPage(root) {
 
   const activeCount = tools.filter((t) => t.active).length;
   const featuredCount = tools.filter((t) => t.featured).length;
-  const categoriesList = Array.from(new Set(tools.map((t) => t.category).filter(Boolean)));
+  const categoriesList = categories.map((c) => c.name);
   const adminUsersCount = users.filter((u) => u.role === 'admin').length;
 
   root.innerHTML = `
@@ -189,13 +196,16 @@ export async function renderAdminDashboardPage(root) {
           </div>
           <h1 style="font-size: 2.2rem; font-weight: 800; color: var(--text-pure);">Admin Store Management</h1>
           <p style="color: var(--text-secondary); margin-top: 0.25rem;">
-            Complete control over AI tool listings, customer directory, live analytics, and concierge community settings.
+            Complete control over AI tool listings, custom categories, customer directory, live analytics, and settings.
           </p>
         </div>
 
         <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
           <button id="admin-add-tool-btn" class="btn btn-primary" style="font-size: 0.88rem; padding: 0.65rem 1.35rem; font-weight: 700;">
             + Add New AI Tool
+          </button>
+          <button id="admin-add-cat-top-btn" class="btn btn-secondary" style="font-size: 0.88rem; padding: 0.65rem 1.25rem; font-weight: 700; border-color: rgba(168, 85, 247, 0.4); color: #c084fc;">
+            + Add Category
           </button>
           <a href="#/" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.65rem 1.15rem; text-decoration: none;">
             View Store
@@ -216,6 +226,13 @@ export async function renderAdminDashboardPage(root) {
             <rect x="3" y="14" width="7" height="7"/>
           </svg>
           <span>AI Tools Inventory (${tools.length})</span>
+        </button>
+
+        <button class="admin-tab-btn ${activeTab === 'categories' ? 'active' : ''}" data-tab="categories">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <span>Categories Catalog (${categories.length})</span>
         </button>
 
         <button class="admin-tab-btn ${activeTab === 'users' ? 'active' : ''}" data-tab="users">
@@ -331,7 +348,94 @@ export async function renderAdminDashboardPage(root) {
         </div>
       </div>
 
-      <!-- TAB 2: REGISTERED MEMBERS DIRECTORY -->
+      <!-- TAB 2: CATEGORIES MANAGEMENT -->
+      <div id="tab-content-categories" style="${activeTab === 'categories' ? 'display: block;' : 'display: none;'}">
+        <!-- Categories KPI Summary Row -->
+        <div class="kpi-row" style="margin-bottom: 2rem;">
+          <div class="kpi-card">
+            <div class="kpi-info">
+              <h4>Total Active Categories</h4>
+              <div class="kpi-number">${categories.length}</div>
+              <div class="kpi-delta" style="color: var(--accent-mint);">Organized taxonomy</div>
+            </div>
+            <div class="kpi-icon-box" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+              </svg>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-info">
+              <h4>Total Catalog Tools</h4>
+              <div class="kpi-number">${tools.length}</div>
+              <div class="kpi-delta" style="color: var(--accent-cyan);">Across all categories</div>
+            </div>
+            <div class="kpi-icon-box" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <rect x="3" y="3" width="7" height="7"/>
+                <rect x="14" y="3" width="7" height="7"/>
+                <rect x="14" y="14" width="7" height="7"/>
+                <rect x="3" y="14" width="7" height="7"/>
+              </svg>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-info">
+              <h4>Average Products / Category</h4>
+              <div class="kpi-number">${categories.length ? (tools.length / categories.length).toFixed(1) : 0}</div>
+              <div class="kpi-delta" style="color: #fb923c;">Balanced distribution</div>
+            </div>
+            <div class="kpi-icon-box" style="background: rgba(249, 115, 22, 0.15); color: #fb923c;">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter and Search Bar for Categories -->
+        <div class="admin-filter-bar">
+          <div style="display: flex; gap: 0.75rem; align-items: center; flex: 1; max-width: 450px;">
+            <input 
+              type="text" 
+              id="categories-search-input" 
+              class="admin-search-input" 
+              placeholder="Search categories by name, details, or slug..." 
+              style="width: 100%;"
+            />
+          </div>
+
+          <div style="display: flex; gap: 0.75rem; align-items: center;">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">
+              Total <strong id="categories-count-badge" style="color: var(--text-pure);">${categories.length}</strong> categories
+            </div>
+            <button id="admin-add-category-btn" class="btn btn-primary" style="font-size: 0.88rem; padding: 0.65rem 1.35rem; font-weight: 700;">
+              + Add New Category
+            </button>
+          </div>
+        </div>
+
+        <!-- Categories Table Card -->
+        <div class="admin-table-card">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
+            <div>
+              <h3 style="font-size: 1.15rem; color: var(--text-pure); font-weight: 700;">Store Taxonomy & Categories</h3>
+              <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">
+                Manage categories, custom descriptions, icons, theme colors, and banners.
+              </p>
+            </div>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Instant Live Sync</span>
+          </div>
+
+          <div id="admin-categories-table-container">
+            ${renderCategoriesTableHtml(categories)}
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: REGISTERED MEMBERS DIRECTORY -->
       <div id="tab-content-users" style="${activeTab === 'users' ? 'display: block;' : 'display: none;'}">
         <!-- Members Summary KPIs -->
         <div class="kpi-row">
@@ -448,17 +552,17 @@ export async function renderAdminDashboardPage(root) {
             Products Distribution by Category
           </h3>
           <div style="display: flex; flex-direction: column; gap: 1rem;">
-            ${categoriesList.map((cat) => {
-              const count = tools.filter((t) => t.category === cat).length;
+            ${categories.map((cat) => {
+              const count = tools.filter((t) => (t.category || '').toLowerCase() === cat.name.toLowerCase()).length;
               const percent = tools.length > 0 ? Math.round((count / tools.length) * 100) : 0;
               return `
                 <div>
                   <div style="display: flex; justify-content: space-between; font-size: 0.88rem; margin-bottom: 0.35rem;">
-                    <span style="font-weight: 600; color: var(--text-pure);">${cat}</span>
+                    <span style="font-weight: 600; color: var(--text-pure);">${cat.icon || '✨'} ${cat.name}</span>
                     <span style="color: var(--text-secondary);">${count} tools (${percent}%)</span>
                   </div>
                   <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.06); border-radius: 999px; overflow: hidden;">
-                    <div style="width: ${percent}%; height: 100%; background: linear-gradient(90deg, #38bdf8, #818cf8); border-radius: 999px;"></div>
+                    <div style="width: ${percent}%; height: 100%; background: linear-gradient(90deg, ${cat.color || '#38bdf8'}, #818cf8); border-radius: 999px;"></div>
                   </div>
                 </div>
               `;
@@ -560,7 +664,7 @@ export async function renderAdminDashboardPage(root) {
       document.querySelectorAll('.admin-tab-btn').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
 
-      ['tools', 'users', 'analytics', 'settings'].forEach((tName) => {
+      ['tools', 'categories', 'users', 'analytics', 'settings'].forEach((tName) => {
         const el = document.getElementById(`tab-content-${tName}`);
         if (el) el.style.display = tName === tab ? 'block' : 'none';
       });
@@ -594,7 +698,7 @@ export async function renderAdminDashboardPage(root) {
     if (badge) badge.textContent = filtered.length;
     if (container) {
       container.innerHTML = renderToolsTableHtml(filtered);
-      bindToolsTableEvents(filtered, root);
+      bindToolsTableEvents(filtered, root, categories);
     }
   };
 
@@ -603,7 +707,33 @@ export async function renderAdminDashboardPage(root) {
   if (statusFilter) statusFilter.onchange = applyToolsFilter;
 
   // Bind tools table events initially
-  bindToolsTableEvents(tools, root);
+  bindToolsTableEvents(tools, root, categories);
+
+  // Categories Search Listener
+  const catSearchInput = document.getElementById('categories-search-input');
+  if (catSearchInput) {
+    catSearchInput.oninput = () => {
+      const q = (catSearchInput.value || '').toLowerCase().trim();
+      const filteredCats = categories.filter((c) => {
+        return (
+          !q ||
+          (c.name || '').toLowerCase().includes(q) ||
+          (c.slug || '').toLowerCase().includes(q) ||
+          (c.description || c.desc || '').toLowerCase().includes(q)
+        );
+      });
+      const container = document.getElementById('admin-categories-table-container');
+      const badge = document.getElementById('categories-count-badge');
+      if (badge) badge.textContent = filteredCats.length;
+      if (container) {
+        container.innerHTML = renderCategoriesTableHtml(filteredCats);
+        bindCategoriesTableEvents(filteredCats, root, categories);
+      }
+    };
+  }
+
+  // Bind initial categories table events
+  bindCategoriesTableEvents(categories, root, categories);
 
   // Users Search Listener
   const usersSearchInput = document.getElementById('users-search-input');
@@ -638,7 +768,15 @@ export async function renderAdminDashboardPage(root) {
 
   // Add Tool button
   document.getElementById('admin-add-tool-btn')?.addEventListener('click', () => {
-    openToolEditorModal(null, root);
+    openToolEditorModal(null, root, categories);
+  });
+
+  // Add Category buttons
+  document.getElementById('admin-add-category-btn')?.addEventListener('click', () => {
+    openCategoryEditorModal(null, root, categories);
+  });
+  document.getElementById('admin-add-cat-top-btn')?.addEventListener('click', () => {
+    openCategoryEditorModal(null, root, categories);
   });
 
   // Test Database Ping Button
@@ -793,7 +931,7 @@ function bindToolsTableEvents(toolsList, root) {
     btn.onclick = () => {
       const id = btn.dataset.id;
       const tool = toolsList.find((t) => t.id === id);
-      if (tool) openToolEditorModal(tool, root);
+      if (tool) openToolEditorModal(tool, root, categoriesList);
     };
   });
 
@@ -911,15 +1049,358 @@ function bindUsersTableEvents(usersList, root) {
   });
 }
 
-// Modal for Adding / Editing a Tool with Supabase Storage File Upload
-function openToolEditorModal(existingTool, root) {
+// ============================================================================
+// CATEGORIES TABLE & EVENT HANDLERS
+// ============================================================================
+
+function renderCategoriesTableHtml(categoriesList) {
+  if (!categoriesList || categoriesList.length === 0) {
+    return `
+      <div style="text-align: center; padding: 3.5rem 1rem; color: var(--text-muted);">
+        <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📂</div>
+        <p style="font-weight: 700; color: var(--text-pure); font-size: 1.05rem;">No categories found.</p>
+        <p style="font-size: 0.85rem; margin-top: 0.35rem;">Click "+ Add New Category" above to create your first category.</p>
+      </div>
+    `;
+  }
+
+  return `
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th style="width: 70px;">Media</th>
+          <th>Category & Slug</th>
+          <th>Description & Details</th>
+          <th>Theme Color</th>
+          <th>Assigned Tools</th>
+          <th>Sort Order</th>
+          <th style="text-align: right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${categoriesList.map((cat) => `
+          <tr data-category-id="${cat.id}">
+            <td>
+              <div style="width: 44px; height: 44px; border-radius: 12px; background: ${cat.color || '#6366f1'}20; border: 1px solid ${cat.color || '#6366f1'}40; display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 1.35rem; flex-shrink: 0;">
+                ${cat.image ? `<img src="${cat.image}" alt="${cat.name}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.onerror=null;this.style.display='none';this.parentNode.innerHTML='<span>${cat.icon || '✨'}</span>';" />` : `<span>${cat.icon || '✨'}</span>`}
+              </div>
+            </td>
+            <td>
+              <div>
+                <div style="font-weight: 700; color: var(--text-pure); font-size: 0.95rem;">${cat.name}</div>
+                <div style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono);">/${cat.slug || cat.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}</div>
+              </div>
+            </td>
+            <td style="max-width: 320px;">
+              <div style="font-size: 0.83rem; color: var(--text-secondary); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;" title="${cat.description || cat.desc || ''}">
+                ${cat.description || cat.desc || '<span style="color: #64748b; font-style: italic;">No description provided</span>'}
+              </div>
+            </td>
+            <td>
+              <div style="display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.25rem 0.65rem; border-radius: 9999px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-subtle); font-size: 0.75rem; font-family: var(--font-mono);">
+                <span style="width: 10px; height: 10px; border-radius: 50%; background: ${cat.color || '#6366f1'};"></span>
+                <span>${cat.color || '#6366f1'}</span>
+              </div>
+            </td>
+            <td>
+              <span class="badge ${cat.count > 0 ? 'badge-popular' : ''}" style="font-size: 0.78rem;">
+                ${cat.count || 0} ${cat.count === 1 ? 'Tool' : 'Tools'}
+              </span>
+            </td>
+            <td style="font-size: 0.82rem; color: var(--text-muted); font-family: var(--font-mono);">
+              #${cat.sortOrder ?? 0}
+            </td>
+            <td style="text-align: right;">
+              <div style="display: inline-flex; gap: 0.4rem; justify-content: flex-end;">
+                <a href="#/tools?category=${encodeURIComponent(cat.name)}" class="btn-details" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;" title="View category in store">Store</a>
+                <button class="btn-details edit-category-btn" data-id="${cat.id}" data-name="${cat.name}" style="font-size: 0.75rem; padding: 0.35rem 0.65rem; color: var(--accent-cyan);" title="Edit category details">Edit</button>
+                <button class="btn-details delete-category-btn" data-id="${cat.id}" data-name="${cat.name}" data-count="${cat.count || 0}" style="font-size: 0.75rem; padding: 0.35rem 0.65rem; color: #f87171;" title="Delete category">Delete</button>
+              </div>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function bindCategoriesTableEvents(categoriesList, root, allCategories = []) {
+  // Edit Category button
+  document.querySelectorAll('.edit-category-btn').forEach((btn) => {
+    btn.onclick = () => {
+      const id = btn.dataset.id;
+      const name = btn.dataset.name;
+      const category = categoriesList.find((c) => c.id === id || c.name === name);
+      if (category) openCategoryEditorModal(category, root, allCategories);
+    };
+  });
+
+  // Delete Category button
+  document.querySelectorAll('.delete-category-btn').forEach((btn) => {
+    btn.onclick = async () => {
+      const id = btn.dataset.id;
+      const name = btn.dataset.name;
+      const count = parseInt(btn.dataset.count, 10) || 0;
+
+      const message = count > 0
+        ? `⚠️ Category "${name}" currently has ${count} tool(s) assigned to it.\n\nAre you sure you want to permanently delete this category?`
+        : `Are you sure you want to permanently delete category "${name}"?`;
+
+      if (confirm(message)) {
+        try {
+          await toolsApi.adminDeleteCategory(id, name);
+          showToast(`Category "${name}" deleted successfully.`, 'success');
+          renderAdminDashboardPage(root);
+        } catch (e) {
+          showToast(`Failed to delete category: ${e.message}`, 'error');
+        }
+      }
+    };
+  });
+}
+
+// ============================================================================
+// CATEGORY EDITOR MODAL (ADD / EDIT CATEGORY + IMAGE UPLOAD)
+// ============================================================================
+function openCategoryEditorModal(existingCategory, root, allCategories = []) {
+  const modalRoot = document.getElementById('modal-root') || document.body;
+  const isEdit = Boolean(existingCategory);
+
+  const cat = existingCategory || {
+    name: '',
+    slug: '',
+    icon: '✨',
+    color: '#6366f1',
+    description: '',
+    image: '',
+    sortOrder: allCategories.length + 1
+  };
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop auth-backdrop-fade';
+
+  backdrop.innerHTML = `
+    <div class="modal-card" style="max-width: 640px; max-height: 92vh; overflow-y: auto;" onclick="event.stopPropagation();">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 1rem;">
+        <div>
+          <h3 style="font-size: 1.35rem; color: var(--text-pure); font-weight: 800;">
+            ${isEdit ? `Edit Category: ${cat.name}` : 'Create New AI Category'}
+          </h3>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">
+            Configure category metadata, icon, theme color, custom details, and banner image.
+          </p>
+        </div>
+        <button id="cat-editor-close" class="modal-close-btn">&times;</button>
+      </div>
+
+      <form id="category-editor-form">
+        <!-- Name & Slug -->
+        <div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 1rem;">
+          <div class="form-group">
+            <label class="form-label">Category Name *</label>
+            <input type="text" id="cat-name" class="form-input" value="${cat.name || ''}" placeholder="e.g. AI Video Creation" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">URL Slug *</label>
+            <input type="text" id="cat-slug" class="form-input" value="${cat.slug || ''}" placeholder="e.g. ai-video-creation" required />
+          </div>
+        </div>
+
+        <!-- Icon, Color & Sort Order -->
+        <div style="display: grid; grid-template-columns: 0.6fr 1fr 0.6fr; gap: 1rem;">
+          <div class="form-group">
+            <label class="form-label">Icon (Emoji) *</label>
+            <input type="text" id="cat-icon" class="form-input" value="${cat.icon || '✨'}" placeholder="🎬" required style="font-size: 1.2rem; text-align: center;" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Theme Color *</label>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <input type="color" id="cat-color-picker" value="${cat.color || '#6366f1'}" style="width: 44px; height: 40px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); background: transparent; cursor: pointer; padding: 2px;" />
+              <input type="text" id="cat-color-text" class="form-input" value="${cat.color || '#6366f1'}" style="flex: 1; font-family: var(--font-mono); text-transform: uppercase;" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sort Order</label>
+            <input type="number" id="cat-sort-order" class="form-input" value="${cat.sortOrder ?? 0}" min="0" />
+          </div>
+        </div>
+
+        <!-- Preset Color Badges Row -->
+        <div style="margin: -0.5rem 0 1.25rem 0; display: flex; gap: 0.4rem; flex-wrap: wrap;">
+          ${['#a855f7', '#3b82f6', '#10b981', '#f97316', '#ec4899', '#eab308', '#06b6d4', '#6366f1', '#14b8a6', '#ef4444'].map((c) => `
+            <button type="button" class="preset-color-btn" data-color="${c}" style="width: 24px; height: 24px; border-radius: 50%; background: ${c}; border: 2px solid ${cat.color === c ? '#ffffff' : 'transparent'}; cursor: pointer; transition: transform 0.15s;"></button>
+          `).join('')}
+        </div>
+
+        <!-- Details / Description -->
+        <div class="form-group">
+          <label class="form-label">Category Description & Details *</label>
+          <textarea id="cat-description" class="form-textarea" style="min-height: 85px;" placeholder="Comprehensive details explaining what AI tools and creative workflows belong in this category..." required>${cat.description || cat.desc || ''}</textarea>
+        </div>
+
+        <!-- Category Image Upload & Preview -->
+        <div class="form-group">
+          <label class="form-label">Category Image / Banner (Optional)</label>
+          <div style="display: flex; gap: 0.75rem; margin-bottom: 0.6rem;">
+            <input type="text" id="cat-image-url" class="form-input" value="${cat.image || ''}" placeholder="https://example.com/category-banner.png" style="flex: 1;" />
+            <label class="btn btn-secondary" style="cursor: pointer; padding: 0.65rem 1.1rem; font-size: 0.85rem; white-space: nowrap;">
+              Upload File
+              <input type="file" id="cat-image-file" accept="image/*" style="display: none;" />
+            </label>
+          </div>
+          <span id="cat-upload-status" style="font-size: 0.75rem; color: var(--accent-cyan); display: none; margin-bottom: 0.5rem;"></span>
+
+          <!-- Live Image Preview Container -->
+          <div id="cat-image-preview-wrap" style="${cat.image ? 'display: flex;' : 'display: none;'} align-items: center; gap: 1rem; padding: 0.75rem; background: rgba(0,0,0,0.25); border: 1px dashed var(--border-glass); border-radius: var(--radius-md);">
+            <img id="cat-image-preview" src="${cat.image || ''}" alt="Preview" style="width: 70px; height: 50px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border-glass);" />
+            <div style="flex: 1; font-size: 0.8rem; color: var(--text-muted);">
+              Live Image / Banner Preview
+            </div>
+            <button type="button" id="cat-image-clear" class="btn-details" style="color: #f87171; font-size: 0.75rem;">Clear Image</button>
+          </div>
+        </div>
+
+        <!-- Submit Buttons -->
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-subtle); padding-top: 1.25rem; margin-top: 1.5rem;">
+          <button type="button" id="cat-cancel-btn" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="cat-submit-btn" class="btn btn-primary" style="padding: 0.75rem 1.75rem; font-weight: 700;">
+            ${isEdit ? 'Save Category Changes' : 'Create Category'}
+          </button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  modalRoot.appendChild(backdrop);
+
+  const closeModal = () => backdrop.remove();
+  backdrop.onclick = closeModal;
+  document.getElementById('cat-editor-close').onclick = closeModal;
+  document.getElementById('cat-cancel-btn').onclick = closeModal;
+
+  // Auto slug from name
+  const nameInput = document.getElementById('cat-name');
+  const slugInput = document.getElementById('cat-slug');
+  if (!isEdit) {
+    nameInput.oninput = () => {
+      slugInput.value = nameInput.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    };
+  }
+
+  // Color picker sync
+  const colorPicker = document.getElementById('cat-color-picker');
+  const colorText = document.getElementById('cat-color-text');
+  colorPicker.oninput = () => {
+    colorText.value = colorPicker.value;
+  };
+  colorText.oninput = () => {
+    if (/^#[0-9a-f]{6}$/i.test(colorText.value)) {
+      colorPicker.value = colorText.value;
+    }
+  };
+
+  // Preset color buttons
+  document.querySelectorAll('.preset-color-btn').forEach((btn) => {
+    btn.onclick = () => {
+      const col = btn.dataset.color;
+      colorPicker.value = col;
+      colorText.value = col;
+      document.querySelectorAll('.preset-color-btn').forEach((b) => b.style.borderColor = 'transparent');
+      btn.style.borderColor = '#ffffff';
+    };
+  });
+
+  // Image Upload and live preview
+  const fileInput = document.getElementById('cat-image-file');
+  const imageUrlInput = document.getElementById('cat-image-url');
+  const uploadStatus = document.getElementById('cat-upload-status');
+  const previewWrap = document.getElementById('cat-image-preview-wrap');
+  const previewImg = document.getElementById('cat-image-preview');
+  const clearBtn = document.getElementById('cat-image-clear');
+
+  const updatePreview = (url) => {
+    if (url) {
+      previewImg.src = url;
+      previewWrap.style.display = 'flex';
+    } else {
+      previewWrap.style.display = 'none';
+      previewImg.src = '';
+    }
+  };
+
+  imageUrlInput.oninput = () => updatePreview(imageUrlInput.value.trim());
+
+  if (clearBtn) {
+    clearBtn.onclick = () => {
+      imageUrlInput.value = '';
+      updatePreview('');
+    };
+  }
+
+  fileInput.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    uploadStatus.textContent = 'Processing & uploading category image...';
+    uploadStatus.style.display = 'block';
+
+    try {
+      const publicUrl = await uploadToolImage(file, 'categories');
+      imageUrlInput.value = publicUrl;
+      updatePreview(publicUrl);
+      uploadStatus.textContent = '✓ Image uploaded successfully!';
+      uploadStatus.style.color = 'var(--accent-mint)';
+    } catch (err) {
+      uploadStatus.textContent = `Upload error: ${err.message}`;
+      uploadStatus.style.color = '#f87171';
+    }
+  };
+
+  // Form submit
+  const form = document.getElementById('category-editor-form');
+  const submitBtn = document.getElementById('cat-submit-btn');
+
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    submitBtn.textContent = 'Saving Category...';
+    submitBtn.disabled = true;
+
+    const payload = {
+      id: cat.id,
+      name: nameInput.value.trim(),
+      slug: slugInput.value.trim(),
+      icon: document.getElementById('cat-icon').value.trim() || '✨',
+      color: colorText.value.trim() || '#6366f1',
+      description: document.getElementById('cat-description').value.trim(),
+      image: imageUrlInput.value.trim(),
+      sortOrder: parseInt(document.getElementById('cat-sort-order').value, 10) || 0
+    };
+
+    try {
+      await toolsApi.adminSaveCategory(payload);
+      showToast(`Category "${payload.name}" saved successfully!`, 'success');
+      closeModal();
+      activeTab = 'categories';
+      renderAdminDashboardPage(root);
+    } catch (err) {
+      showToast(`Category save error: ${err.message}`, 'error');
+      submitBtn.textContent = isEdit ? 'Save Category Changes' : 'Create Category';
+      submitBtn.disabled = false;
+    }
+  };
+}
+
+// ============================================================================
+// TOOL EDITOR MODAL (ADD / EDIT TOOL + IMAGE UPLOAD + DYNAMIC CATEGORIES)
+// ============================================================================
+function openToolEditorModal(existingTool, root, allCategories = []) {
   const modalRoot = document.getElementById('modal-root') || document.body;
 
   const isEdit = Boolean(existingTool);
   const tool = existingTool || {
     name: '',
     slug: '',
-    category: 'AI Writing',
+    category: allCategories.length > 0 ? allCategories[0].name : 'AI Writing',
     price: '$19 /month',
     shortDescription: '',
     fullDescription: '',
@@ -950,7 +1431,7 @@ function openToolEditorModal(existingTool, root) {
             ${isEdit ? `Edit AI Tool: ${tool.name}` : 'Add New AI Tool to Supabase'}
           </h3>
           <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">
-            Fill in product information, pricing, WhatsApp links, and tutorial media.
+            Fill in product information, dynamic category, pricing, WhatsApp links, and media.
           </p>
         </div>
         <button id="editor-modal-close" class="modal-close-btn">&times;</button>
@@ -972,17 +1453,29 @@ function openToolEditorModal(existingTool, root) {
         <!-- Category & Price -->
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
           <div class="form-group">
-            <label class="form-label">Category *</label>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+              <label class="form-label" style="margin-bottom: 0;">Category *</label>
+              <button type="button" id="quick-add-cat-btn" style="background: none; border: none; color: var(--accent-cyan); font-size: 0.78rem; font-weight: 600; cursor: pointer; text-decoration: underline;">
+                + New Category
+              </button>
+            </div>
             <select id="tool-category" class="sort-select" style="width: 100%; border-radius: var(--radius-md);">
-              <option value="AI Writing" ${tool.category === 'AI Writing' ? 'selected' : ''}>AI Writing</option>
-              <option value="AI Image" ${tool.category === 'AI Image' ? 'selected' : ''}>AI Image</option>
-              <option value="AI Video" ${tool.category === 'AI Video' ? 'selected' : ''}>AI Video</option>
-              <option value="AI Audio" ${tool.category === 'AI Audio' ? 'selected' : ''}>AI Audio</option>
-              <option value="AI Coding" ${tool.category === 'AI Coding' ? 'selected' : ''}>AI Coding</option>
-              <option value="AI Automation" ${tool.category === 'AI Automation' ? 'selected' : ''}>AI Automation</option>
-              <option value="Productivity" ${tool.category === 'Productivity' ? 'selected' : ''}>Productivity</option>
-              <option value="Marketing" ${tool.category === 'Marketing' ? 'selected' : ''}>Marketing</option>
-              <option value="Business" ${tool.category === 'Business' ? 'selected' : ''}>Business</option>
+              ${allCategories.length > 0 
+                ? allCategories.map((c) => `
+                    <option value="${c.name}" ${(tool.category || '').toLowerCase() === c.name.toLowerCase() ? 'selected' : ''}>
+                      ${c.icon || '✨'} ${c.name}
+                    </option>
+                  `).join('')
+                : `
+                  <option value="AI Writing" ${tool.category === 'AI Writing' ? 'selected' : ''}>✍️ AI Writing</option>
+                  <option value="AI Image" ${tool.category === 'AI Image' ? 'selected' : ''}>🎨 AI Image</option>
+                  <option value="AI Video" ${tool.category === 'AI Video' ? 'selected' : ''}>🎬 AI Video</option>
+                  <option value="AI Audio" ${tool.category === 'AI Audio' ? 'selected' : ''}>🎙️ AI Audio</option>
+                  <option value="AI Coding" ${tool.category === 'AI Coding' ? 'selected' : ''}>💻 AI Coding</option>
+                  <option value="AI Automation" ${tool.category === 'AI Automation' ? 'selected' : ''}>⚡ AI Automation</option>
+                  <option value="Productivity" ${tool.category === 'Productivity' ? 'selected' : ''}>🚀 Productivity</option>
+                `
+              }
             </select>
           </div>
           <div class="form-group">
@@ -991,17 +1484,26 @@ function openToolEditorModal(existingTool, root) {
           </div>
         </div>
 
-        <!-- Image: URL or Supabase Storage Upload -->
+        <!-- Image: URL or File Upload with Live Preview -->
         <div class="form-group">
-          <label class="form-label">Tool Logo / Image URL</label>
-          <div style="display: flex; gap: 0.75rem;">
+          <label class="form-label">Tool Logo / Image</label>
+          <div style="display: flex; gap: 0.75rem; margin-bottom: 0.5rem;">
             <input type="text" id="tool-image-url" class="form-input" value="${tool.image || ''}" placeholder="https://example.com/logo.png" style="flex: 1;" />
             <label class="btn btn-secondary" style="cursor: pointer; padding: 0.65rem 1.1rem; font-size: 0.85rem; white-space: nowrap;">
               Upload File
               <input type="file" id="tool-image-file" accept="image/*" style="display: none;" />
             </label>
           </div>
-          <span id="upload-status-text" style="font-size: 0.75rem; color: var(--accent-cyan); display: none; margin-top: 0.35rem;"></span>
+          <span id="upload-status-text" style="font-size: 0.75rem; color: var(--accent-cyan); display: none; margin-bottom: 0.5rem;"></span>
+
+          <!-- Live Tool Image Preview Box -->
+          <div id="tool-image-preview-wrap" style="${tool.image ? 'display: flex;' : 'display: none;'} align-items: center; gap: 1rem; padding: 0.75rem; background: rgba(0,0,0,0.25); border: 1px dashed var(--border-glass); border-radius: var(--radius-md);">
+            <img id="tool-image-preview" src="${tool.image || ''}" alt="Preview" style="width: 48px; height: 48px; object-fit: contain; border-radius: 8px; background: rgba(255,255,255,0.05); padding: 4px;" />
+            <div style="flex: 1; font-size: 0.8rem; color: var(--text-muted);">
+              Live Logo / Image Preview
+            </div>
+            <button type="button" id="tool-image-clear" class="btn-details" style="color: #f87171; font-size: 0.75rem;">Clear Image</button>
+          </div>
         </div>
 
         <!-- Short Description -->
@@ -1089,6 +1591,12 @@ function openToolEditorModal(existingTool, root) {
   document.getElementById('editor-modal-close').onclick = closeModal;
   document.getElementById('editor-cancel-btn').onclick = closeModal;
 
+  // Quick Add Category from Tool modal
+  document.getElementById('quick-add-cat-btn')?.addEventListener('click', () => {
+    closeModal();
+    openCategoryEditorModal(null, root, allCategories);
+  });
+
   // Auto slug generation from name for new tools
   const nameInput = document.getElementById('tool-name');
   const slugInput = document.getElementById('tool-slug');
@@ -1098,22 +1606,45 @@ function openToolEditorModal(existingTool, root) {
     };
   }
 
-  // File Upload to Supabase Storage
+  // Image Upload and Live Preview
   const fileInput = document.getElementById('tool-image-file');
   const imageUrlInput = document.getElementById('tool-image-url');
   const statusText = document.getElementById('upload-status-text');
+  const previewWrap = document.getElementById('tool-image-preview-wrap');
+  const previewImg = document.getElementById('tool-image-preview');
+  const clearBtn = document.getElementById('tool-image-clear');
+
+  const updateToolPreview = (url) => {
+    if (url) {
+      previewImg.src = url;
+      previewWrap.style.display = 'flex';
+    } else {
+      previewWrap.style.display = 'none';
+      previewImg.src = '';
+    }
+  };
+
+  imageUrlInput.oninput = () => updateToolPreview(imageUrlInput.value.trim());
+
+  if (clearBtn) {
+    clearBtn.onclick = () => {
+      imageUrlInput.value = '';
+      updateToolPreview('');
+    };
+  }
 
   fileInput.onchange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    statusText.textContent = 'Uploading to Supabase Storage...';
+    statusText.textContent = 'Processing & uploading image...';
     statusText.style.display = 'block';
 
     try {
-      const publicUrl = await uploadToolImage(file);
+      const publicUrl = await uploadToolImage(file, 'logos');
       imageUrlInput.value = publicUrl;
-      statusText.textContent = '✓ Image uploaded successfully to Supabase Storage!';
+      updateToolPreview(publicUrl);
+      statusText.textContent = '✓ Image uploaded successfully!';
       statusText.style.color = 'var(--accent-mint)';
     } catch (err) {
       statusText.textContent = `Upload failed: ${err.message}`;
@@ -1161,6 +1692,7 @@ function openToolEditorModal(existingTool, root) {
       await toolsApi.adminSaveTool(payload);
       showToast(`Tool "${payload.name}" successfully saved in Supabase!`, 'success');
       closeModal();
+      activeTab = 'tools';
       renderAdminDashboardPage(root);
     } catch (err) {
       showToast(`Supabase save error: ${err.message}`, 'error');

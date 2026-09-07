@@ -91,64 +91,292 @@ class ToolsApiService {
     }
   }
 
-  // Public Query: Get categories with real-time tool counts from Supabase
-  async getCategories() {
-    const tools = await this.getTools();
-    const map = new Map();
+  // Storage keys for resilient offline/local caching of custom categories
+  // =========================================================================
 
-    // The 8 official marketplace categories specified in design requirements
-    const standardCategories = [
-      { name: 'AI Writing', icon: '✍️', color: '#a855f7' },
-      { name: 'AI Image', icon: '🎨', color: '#10b981' },
-      { name: 'AI Video', icon: '🎬', color: '#f97316' },
-      { name: 'AI Audio', icon: '🎙️', color: '#ec4899' },
-      { name: 'AI Coding', icon: '💻', color: '#3b82f6' },
-      { name: 'AI Automation', icon: '⚡', color: '#eab308' },
-      { name: 'AI Marketing', icon: '📢', color: '#8b5cf6' },
-      { name: 'Productivity', icon: '🚀', color: '#06b6d4' }
+  // Fetch raw categories from Supabase (with fallback to localStorage + defaults)
+  async getRawCategories() {
+    const STORAGE_CATEGORIES_KEY = 'ai_tools_custom_categories_v2';
+    const STORAGE_DELETED_CATEGORIES_KEY = 'ai_tools_deleted_categories_v2';
+
+    const DEFAULT_CATEGORIES = [
+      { id: 'cat-writing', name: 'AI Writing', slug: 'ai-writing', icon: '✍️', color: '#a855f7', desc: 'Advanced copywriting, multilingual blog synthesis, and neural text refinement tools.', image: '', sortOrder: 1 },
+      { id: 'cat-image', name: 'AI Image', slug: 'ai-image', icon: '🎨', color: '#10b981', desc: 'Visual art synthesis, photorealistic artwork generation, and 4K texture upscaling.', image: '', sortOrder: 2 },
+      { id: 'cat-video', name: 'AI Video', slug: 'ai-video', icon: '🎬', color: '#f97316', desc: 'Video production, AI realistic avatars, automatic subtitles, and cinematic effects.', image: '', sortOrder: 3 },
+      { id: 'cat-audio', name: 'AI Audio', slug: 'ai-audio', icon: '🎙️', color: '#ec4899', desc: 'Voice cloning, text-to-speech, podcast audio cleaning, and studio music synthesis.', image: '', sortOrder: 4 },
+      { id: 'cat-coding', name: 'AI Coding', slug: 'ai-coding', icon: '💻', color: '#3b82f6', desc: 'AI pair programming, code refactoring, test suite generation, and multi-language linting.', image: '', sortOrder: 5 },
+      { id: 'cat-automation', name: 'AI Automation', slug: 'ai-automation', icon: '⚡', color: '#eab308', desc: 'Autonomous agent systems, workflow webhooks, and zero-code business automations.', image: '', sortOrder: 6 },
+      { id: 'cat-marketing', name: 'AI Marketing', slug: 'ai-marketing', icon: '📢', color: '#8b5cf6', desc: 'Conversion optimization, multi-channel ad copy, SEO rank tracking, and outreach bots.', image: '', sortOrder: 7 },
+      { id: 'cat-productivity', name: 'Productivity', slug: 'productivity', icon: '🚀', color: '#06b6d4', desc: 'Smart workspaces, knowledge retrieval engines, intelligent note organizers, and assistants.', image: '', sortOrder: 8 }
     ];
 
-    standardCategories.forEach((sc) => {
-      const key = sc.name.toLowerCase();
-      map.set(key, {
-        id: key.replace(/[^a-z0-9]+/g, '-'),
-        name: sc.name,
-        icon: sc.icon,
-        color: sc.color,
-        count: 0
-      });
+    let deletedKeys = [];
+    try {
+      deletedKeys = JSON.parse(localStorage.getItem(STORAGE_DELETED_CATEGORIES_KEY) || '[]');
+    } catch (e) {}
+
+    let list = [];
+
+    // 1. Try Supabase categories table
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('categories')
+          .select('*')
+          .order('sort_order', { ascending: true })
+          .order('created_at', { ascending: true });
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          list = data.map((r) => ({
+            id: r.id,
+            name: r.name,
+            slug: r.slug || r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+            icon: r.icon || '✨',
+            color: r.color || '#6366f1',
+            desc: r.description || '',
+            description: r.description || '',
+            image: r.image || '',
+            sortOrder: typeof r.sort_order === 'number' ? r.sort_order : 0
+          }));
+        }
+      } catch (err) {
+        // Table may not exist yet in Supabase; fallback smoothly
+      }
+    }
+
+    // 2. Read local custom categories
+    let localCategories = [];
+    try {
+      localCategories = JSON.parse(localStorage.getItem(STORAGE_CATEGORIES_KEY) || '[]');
+    } catch (e) {}
+
+    // 3. Build unified category map
+    const categoryMap = new Map();
+
+    // Add default categories unless marked deleted
+    DEFAULT_CATEGORIES.forEach((def) => {
+      const key = def.name.toLowerCase();
+      if (!deletedKeys.includes(key) && !deletedKeys.includes(def.slug)) {
+        categoryMap.set(key, { ...def, count: 0 });
+      }
     });
 
-    // Tally actual tools from database
-    tools.forEach((t) => {
-      const cat = t.category || 'Productivity';
-      const key = cat.toLowerCase();
-      
-      let matched = false;
-      for (const [mapKey, item] of map.entries()) {
-        if (key.includes(mapKey) || mapKey.includes(key) || (key.includes('write') && mapKey.includes('write')) || (key.includes('code') && mapKey.includes('code')) || (key.includes('image') && mapKey.includes('image')) || (key.includes('video') && mapKey.includes('video'))) {
-          item.count++;
-          matched = true;
-          break;
-        }
-      }
+    // Merge Supabase categories
+    list.forEach((item) => {
+      const key = item.name.toLowerCase();
+      categoryMap.set(key, { ...item, count: 0 });
+    });
 
-      if (!matched) {
-        if (!map.has(key)) {
+    // Merge local categories
+    localCategories.forEach((item) => {
+      const key = item.name.toLowerCase();
+      if (!deletedKeys.includes(key) && !deletedKeys.includes(item.slug)) {
+        categoryMap.set(key, { ...item, count: 0 });
+      }
+    });
+
+    return Array.from(categoryMap.values()).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  }
+
+  // Public Query: Get categories with real-time tool counts from active tools
+  async getCategories() {
+    const tools = await this.getTools();
+    const categories = await this.getRawCategories();
+    const map = new Map();
+
+    categories.forEach((cat) => {
+      map.set(cat.name.toLowerCase(), { ...cat, count: 0 });
+    });
+
+    // Count tools for each category
+    tools.forEach((t) => {
+      const toolCat = (t.category || '').trim();
+      if (!toolCat) return;
+
+      const key = toolCat.toLowerCase();
+      if (map.has(key)) {
+        map.get(key).count++;
+      } else {
+        let matched = false;
+        for (const [mapKey, item] of map.entries()) {
+          if (mapKey.includes(key) || key.includes(mapKey)) {
+            item.count++;
+            matched = true;
+            break;
+          }
+        }
+        if (!matched) {
           map.set(key, {
-            id: key.replace(/[^a-z0-9]+/g, '-'),
-            name: cat,
+            id: 'cat-' + key.replace(/[^a-z0-9]+/g, '-'),
+            name: toolCat,
+            slug: key.replace(/[^a-z0-9]+/g, '-'),
             icon: '✨',
             color: '#6366f1',
+            desc: `Curated AI tools in ${toolCat}.`,
+            description: `Curated AI tools in ${toolCat}.`,
+            image: '',
+            sortOrder: 99,
             count: 1
           });
-        } else {
-          map.get(key).count++;
         }
       }
     });
 
-    return Array.from(map.values());
+    return Array.from(map.values()).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  }
+
+  // Admin Query: Get all categories with tool counts (including inactive tools)
+  async adminGetCategories() {
+    const tools = await this.adminGetTools().catch(() => []);
+    const categories = await this.getRawCategories();
+    const map = new Map();
+
+    categories.forEach((cat) => {
+      map.set(cat.name.toLowerCase(), { ...cat, count: 0 });
+    });
+
+    tools.forEach((t) => {
+      const toolCat = (t.category || '').trim();
+      if (!toolCat) return;
+      const key = toolCat.toLowerCase();
+      if (map.has(key)) {
+        map.get(key).count++;
+      } else {
+        map.set(key, {
+          id: 'cat-' + key.replace(/[^a-z0-9]+/g, '-'),
+          name: toolCat,
+          slug: key.replace(/[^a-z0-9]+/g, '-'),
+          icon: '✨',
+          color: '#6366f1',
+          desc: `Curated AI tools in ${toolCat}.`,
+          description: `Curated AI tools in ${toolCat}.`,
+          image: '',
+          sortOrder: 99,
+          count: 1
+        });
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  }
+
+  // Admin Mutation: Add or Update Category
+  async adminSaveCategory(catData) {
+    if (!catData || !catData.name || !catData.name.trim()) {
+      throw new Error('Category name is required.');
+    }
+
+    const cleanName = catData.name.trim();
+    const cleanSlug = (catData.slug || cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')).trim();
+    const cleanDesc = (catData.description || catData.desc || '').trim();
+    const cleanIcon = (catData.icon || '✨').trim();
+    const cleanImage = (catData.image || '').trim();
+    const cleanColor = catData.color || '#6366f1';
+    const sortOrder = parseInt(catData.sortOrder ?? catData.sort_order, 10) || 0;
+
+    const normalized = {
+      id: catData.id || ('cat-' + Date.now().toString(36)),
+      name: cleanName,
+      slug: cleanSlug,
+      description: cleanDesc,
+      desc: cleanDesc,
+      icon: cleanIcon,
+      image: cleanImage,
+      color: cleanColor,
+      sortOrder
+    };
+
+    // 1. Persist to Supabase if configured
+    if (isSupabaseConfigured) {
+      try {
+        const payload = {
+          name: cleanName,
+          slug: cleanSlug,
+          description: cleanDesc,
+          icon: cleanIcon,
+          image: cleanImage,
+          color: cleanColor,
+          sort_order: sortOrder
+        };
+
+        if (catData.id && catData.id.length > 20 && catData.id.includes('-')) {
+          await supabase.from('categories').update(payload).eq('id', catData.id);
+        } else {
+          await supabase.from('categories').upsert(payload, { onConflict: 'slug' });
+        }
+      } catch (err) {
+        console.warn('[AI Tools Store] Supabase category save notice:', err.message);
+      }
+    }
+
+    // 2. Persist to localStorage for instant client availability
+    try {
+      const STORAGE_CATEGORIES_KEY = 'ai_tools_custom_categories_v2';
+      const STORAGE_DELETED_CATEGORIES_KEY = 'ai_tools_deleted_categories_v2';
+
+      let localCategories = JSON.parse(localStorage.getItem(STORAGE_CATEGORIES_KEY) || '[]');
+      const existingIdx = localCategories.findIndex(
+        (c) => c.id === normalized.id || c.slug === normalized.slug || c.name.toLowerCase() === cleanName.toLowerCase()
+      );
+      if (existingIdx >= 0) {
+        localCategories[existingIdx] = { ...localCategories[existingIdx], ...normalized };
+      } else {
+        localCategories.push(normalized);
+      }
+      localStorage.setItem(STORAGE_CATEGORIES_KEY, JSON.stringify(localCategories));
+
+      // Remove from deleted list if re-added
+      let deletedKeys = JSON.parse(localStorage.getItem(STORAGE_DELETED_CATEGORIES_KEY) || '[]');
+      deletedKeys = deletedKeys.filter((k) => k !== cleanName.toLowerCase() && k !== cleanSlug);
+      localStorage.setItem(STORAGE_DELETED_CATEGORIES_KEY, JSON.stringify(deletedKeys));
+    } catch (e) {
+      console.warn('[AI Tools Store] localStorage save category error:', e);
+    }
+
+    return normalized;
+  }
+
+  // Admin Mutation: Delete Category
+  async adminDeleteCategory(categoryId, categoryName) {
+    const cleanName = (categoryName || '').trim().toLowerCase();
+    const cleanId = (categoryId || '').trim();
+
+    // 1. Delete from Supabase
+    if (isSupabaseConfigured) {
+      try {
+        let query = supabase.from('categories').delete();
+        if (cleanId && cleanId.length > 20 && cleanId.includes('-')) {
+          query = query.eq('id', cleanId);
+        } else if (cleanName) {
+          query = query.or(`name.ilike.${cleanName},slug.eq.${cleanId}`);
+        }
+        await query;
+      } catch (err) {
+        console.warn('[AI Tools Store] Supabase category delete notice:', err.message);
+      }
+    }
+
+    // 2. Delete from localStorage
+    try {
+      const STORAGE_CATEGORIES_KEY = 'ai_tools_custom_categories_v2';
+      const STORAGE_DELETED_CATEGORIES_KEY = 'ai_tools_deleted_categories_v2';
+
+      let localCategories = JSON.parse(localStorage.getItem(STORAGE_CATEGORIES_KEY) || '[]');
+      localCategories = localCategories.filter(
+        (c) => c.id !== cleanId && c.name.toLowerCase() !== cleanName && c.slug !== cleanId
+      );
+      localStorage.setItem(STORAGE_CATEGORIES_KEY, JSON.stringify(localCategories));
+
+      // Record in deleted list so default categories don't automatically reappear
+      let deletedKeys = JSON.parse(localStorage.getItem(STORAGE_DELETED_CATEGORIES_KEY) || '[]');
+      if (cleanName && !deletedKeys.includes(cleanName)) deletedKeys.push(cleanName);
+      if (cleanId && !deletedKeys.includes(cleanId)) deletedKeys.push(cleanId);
+      localStorage.setItem(STORAGE_DELETED_CATEGORIES_KEY, JSON.stringify(deletedKeys));
+    } catch (e) {
+      console.warn('[AI Tools Store] localStorage delete category error:', e);
+    }
+
+    return true;
   }
 
   // =========================================================================

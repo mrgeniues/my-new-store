@@ -275,3 +275,43 @@ ON storage.objects FOR ALL
 TO public
 USING (bucket_id = 'tool-images')
 WITH CHECK (bucket_id = 'tool-images');
+
+-- ============================================================================
+-- 6. CATEGORIES TABLE (FOR DYNAMIC CATEGORY CREATION & MANAGEMENT)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.categories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  slug TEXT NOT NULL UNIQUE,
+  description TEXT,
+  icon TEXT DEFAULT '✨',
+  image TEXT,
+  color TEXT DEFAULT '#6366f1',
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_categories_slug ON public.categories(slug);
+CREATE INDEX IF NOT EXISTS idx_categories_sort_order ON public.categories(sort_order);
+
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow full access to categories" ON public.categories;
+CREATE POLICY "Allow full access to categories"
+ON public.categories FOR ALL
+TO public
+USING (true)
+WITH CHECK (true);
+
+INSERT INTO public.categories (name, slug, icon, color, description, sort_order)
+VALUES
+  ('AI Writing', 'ai-writing', '✍️', '#a855f7', 'Advanced copywriting, multilingual blog synthesis, and neural text refinement tools.', 1),
+  ('AI Image', 'ai-image', '🎨', '#10b981', 'Visual art synthesis, photorealistic artwork generation, and 4K texture upscaling.', 2),
+  ('AI Video', 'ai-video', '🎬', '#f97316', 'Video production, AI realistic avatars, automatic subtitles, and cinematic effects.', 3),
+  ('AI Audio', 'ai-audio', '🎙️', '#ec4899', 'Voice cloning, text-to-speech, podcast audio cleaning, and studio music synthesis.', 4),
+  ('AI Coding', 'ai-coding', '💻', '#3b82f6', 'AI pair programming, code refactoring, test suite generation, and multi-language linting.', 5),
+  ('AI Automation', 'ai-automation', '⚡', '#eab308', 'Autonomous agent systems, workflow webhooks, and zero-code business automations.', 6),
+  ('AI Marketing', 'ai-marketing', '📢', '#8b5cf6', 'Conversion optimization, multi-channel ad copy, SEO rank tracking, and outreach bots.', 7),
+  ('Productivity', 'productivity', '🚀', '#06b6d4', 'Smart workspaces, knowledge retrieval engines, intelligent note organizers, and assistants.', 8)
+ON CONFLICT (slug) DO NOTHING;
