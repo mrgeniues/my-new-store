@@ -3,10 +3,65 @@ import { authService } from '../lib/auth.js';
 import { openSearchModal } from './SearchModal.js';
 import { openAuthModal } from './AuthModal.js';
 import { openAccountModal } from './AccountModal.js';
-import { showToast } from '../utils/helpers.js';
+import { showToast, getCountryFlag } from '../utils/helpers.js';
 import { renderLanguageSelectorButton, initLanguageSelector } from './LanguageSelector.js';
 import { t } from '../i18n/i18n.js';
 import { defaultWhatsappUrl } from '../lib/supabase.js';
+
+/**
+ * Helper to render the live country selector
+ */
+export function renderCountrySelector(context = 'nav') {
+  const userCountry = authService.getUserCountry() || 'Pakistan';
+  const flag = getCountryFlag(userCountry);
+  const shortLabel = userCountry === 'Pakistan' ? 'PKR' : userCountry === 'India' ? 'INR' : userCountry === 'United Arab Emirates' ? 'AED' : userCountry === 'Saudi Arabia' ? 'SAR' : 'USD';
+
+  return `
+    <div class="nav-country-wrapper" id="${context}-country-wrapper" style="position: relative; display: inline-block;">
+      <button type="button" class="nav-country-btn" id="${context}-country-btn" title="Pricing Country: ${userCountry} (${shortLabel})">
+        <span>${flag}</span>
+        <span style="font-weight: 700; font-size: 0.75rem;">${shortLabel}</span>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+
+      <div class="nav-country-dropdown" id="${context}-country-dropdown" style="display: none;">
+        <div style="font-size: 0.68rem; color: var(--text-muted); padding: 0.35rem 0.65rem; text-transform: uppercase; font-weight: 700; border-bottom: 1px solid var(--border-glass); margin-bottom: 0.25rem;">
+          View Pricing For:
+        </div>
+        <button type="button" class="nav-country-option ${userCountry === 'Pakistan' ? 'active' : ''}" data-country="Pakistan">
+          <span>🇵🇰</span>
+          <span>Pakistan (PKR)</span>
+        </button>
+        <button type="button" class="nav-country-option ${userCountry === 'India' ? 'active' : ''}" data-country="India">
+          <span>🇮🇳</span>
+          <span>India (INR)</span>
+        </button>
+        <button type="button" class="nav-country-option ${userCountry === 'United Arab Emirates' ? 'active' : ''}" data-country="United Arab Emirates">
+          <span>🇦🇪</span>
+          <span>UAE (AED)</span>
+        </button>
+        <button type="button" class="nav-country-option ${userCountry === 'Saudi Arabia' ? 'active' : ''}" data-country="Saudi Arabia">
+          <span>🇸🇦</span>
+          <span>Saudi Arabia (SAR)</span>
+        </button>
+        <button type="button" class="nav-country-option ${userCountry === 'United States' ? 'active' : ''}" data-country="United States">
+          <span>🇺🇸</span>
+          <span>United States (USD)</span>
+        </button>
+        <button type="button" class="nav-country-option ${userCountry === 'United Kingdom' ? 'active' : ''}" data-country="United Kingdom">
+          <span>🇬🇧</span>
+          <span>United Kingdom (GBP)</span>
+        </button>
+        <button type="button" class="nav-country-option ${userCountry === 'Global' || userCountry === 'Other' ? 'active' : ''}" data-country="Global">
+          <span>🌐</span>
+          <span>Global / Others (USD)</span>
+        </button>
+      </div>
+    </div>
+  `;
+}
 
 /**
  * Helper to render the desktop / mobile authentication slot
@@ -223,7 +278,7 @@ export function renderNavbar(activePath = '/') {
 
         <!-- Right Nav Actions -->
         <div class="nav-actions">
-          <!-- Search & Language Selector Side-by-Side: [ 🔍 Search ] [ 🌐 EN ▾ ] -->
+          <!-- Search, Country Selector & Language Selector: [ 🔍 ] [ 🇵🇰 PKR ▾ ] [ 🌐 EN ▾ ] -->
           <div class="nav-search-lang-group" id="nav-search-lang-group">
             <button id="nav-search-trigger" class="nav-search-btn" title="${t('nav.searchTitle')}">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -232,6 +287,7 @@ export function renderNavbar(activePath = '/') {
               </svg>
               <span class="kbd-shortcut">${t('nav.searchKbd')}</span>
             </button>
+            ${renderCountrySelector('nav')}
             ${renderLanguageSelectorButton('nav')}
           </div>
 
@@ -266,7 +322,12 @@ export function renderNavbar(activePath = '/') {
           <a href="#/about" class="mobile-nav-link ${isAbout ? 'active' : ''}">${t('nav.about')}</a>
           <a href="#/contact" class="mobile-nav-link ${isContact ? 'active' : ''}">${t('nav.contact')}</a>
 
-          <div class="mobile-lang-wrap" style="margin-top: 1rem; display: flex; align-items: center; justify-content: space-between;">
+          <div class="mobile-country-wrap" style="margin-top: 1rem; display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 0.85rem; color: var(--text-secondary);">Country Pricing:</span>
+            ${renderCountrySelector('mobile-nav')}
+          </div>
+
+          <div class="mobile-lang-wrap" style="margin-top: 0.75rem; display: flex; align-items: center; justify-content: space-between;">
             <span style="font-size: 0.85rem; color: var(--text-secondary);">${t('nav.selectLanguage')}:</span>
             ${renderLanguageSelectorButton('mobile-nav')}
           </div>
@@ -368,6 +429,11 @@ function bindAuthSlotEvents(container) {
 if (typeof window !== 'undefined' && !window.__authEventsDelegated) {
   window.__authEventsDelegated = true;
   document.addEventListener('click', (e) => {
+    // 0. Close country dropdowns when clicking outside
+    if (!e.target.closest('.nav-country-wrapper')) {
+      document.querySelectorAll('.nav-country-dropdown').forEach((d) => (d.style.display = 'none'));
+    }
+
     // 1. Close profile dropdown when clicking outside
     const dropdownWrapper = document.getElementById('nav-profile-dropdown-wrapper');
     if (dropdownWrapper && !dropdownWrapper.contains(e.target)) {
@@ -420,6 +486,32 @@ if (typeof window !== 'undefined' && !window.__authEventsDelegated) {
 export function attachNavbarEvents() {
   // Initialize language selector buttons and dropdown
   initLanguageSelector(document);
+
+  // Initialize Country Selector buttons and options
+  ['nav', 'mobile-nav'].forEach((ctx) => {
+    const btn = document.getElementById(`${ctx}-country-btn`);
+    const menu = document.getElementById(`${ctx}-country-dropdown`);
+    if (btn && menu) {
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const isOpen = menu.style.display === 'flex';
+        document.querySelectorAll('.nav-country-dropdown').forEach((d) => (d.style.display = 'none'));
+        menu.style.display = isOpen ? 'none' : 'flex';
+      };
+
+      menu.querySelectorAll('.nav-country-option').forEach((opt) => {
+        opt.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const selected = opt.dataset.country;
+          menu.style.display = 'none';
+          authService.setUserCountry(selected);
+          showToast(`Store pricing switched to ${selected}`, 'info');
+        };
+      });
+    }
+  });
 
   const searchBtn = document.getElementById('nav-search-trigger');
   if (searchBtn) {

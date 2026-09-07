@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 -- Ensure all columns exist if table was previously created
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'member';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS whatsapp_number TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS country TEXT DEFAULT 'Pakistan';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS preferred_language TEXT DEFAULT 'en';
 
 -- Enable Row Level Security on profiles
@@ -154,6 +155,7 @@ CREATE TABLE IF NOT EXISTS public.tools (
   short_description TEXT,
   full_description TEXT,
   price TEXT NOT NULL DEFAULT '$19 /month',
+  country_pricing JSONB DEFAULT '{}'::jsonb,
   category TEXT NOT NULL DEFAULT 'AI Writing',
   features JSONB NOT NULL DEFAULT '[]'::jsonb,
   how_to_use JSONB NOT NULL DEFAULT '[]'::jsonb,

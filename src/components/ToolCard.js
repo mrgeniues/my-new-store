@@ -1,5 +1,5 @@
 // AI Tools Store - Premium Animated Tool Cards (Matching Exact Reference Image)
-import { getToolIconSvg, buildWhatsAppLink, showToast } from '../utils/helpers.js';
+import { getToolIconSvg, buildWhatsAppLink, showToast, getToolLocalizedPrice, getCountryFlag, renderFormattedPoints } from '../utils/helpers.js';
 import { requireAuth } from '../utils/authGuard.js';
 import { t, getLocalizedTool } from '../i18n/i18n.js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
@@ -49,7 +49,9 @@ export function toggleFavorite(toolId, toolName = 'Tool') {
 export function renderToolCard(rawTool) {
   const tool = getLocalizedTool(rawTool);
   const iconSvg = getToolIconSvg(tool.id, tool.name);
-  const buyLink = buildWhatsAppLink(tool.whatsappUrl, tool.name);
+  const userCountry = authService.getUserCountry() || 'Pakistan';
+  const localizedPrice = getToolLocalizedPrice(tool, userCountry);
+  const buyLink = buildWhatsAppLink(tool.whatsappUrl, tool.name, localizedPrice, userCountry);
   const isFav = getFavorites().includes(tool.id);
 
   // Theme identification (purple, teal, or blue)
@@ -65,17 +67,16 @@ export function renderToolCard(rawTool) {
     }
   }
 
-  // Price formatting
+  // Localized Price formatting (country targeted)
   let amount = '$19';
   let unit = 'month';
-  if (tool.price) {
-    const clean = tool.price.replace(/\s+/g, '');
-    if (clean.includes('/')) {
-      const parts = clean.split('/');
-      amount = parts[0];
-      unit = parts[1] || 'month';
+  if (localizedPrice) {
+    if (localizedPrice.includes('/')) {
+      const parts = localizedPrice.split('/');
+      amount = parts[0].trim();
+      unit = parts[1].trim() || 'month';
     } else {
-      amount = tool.price;
+      amount = localizedPrice.trim();
     }
   }
 
@@ -129,10 +130,12 @@ export function renderToolCard(rawTool) {
         <span class="card-category-pill">${tool.category}</span>
       </div>
 
-      <!-- Tool Title & Description -->
+      <!-- Tool Title & Description (Bullet Points Supported) -->
       <div class="card-body-content">
         <h3 class="card-tool-name">${tool.name}</h3>
-        <p class="card-tool-desc">${tool.shortDescription || tool.description || ''}</p>
+        <div class="card-tool-desc">
+          ${renderFormattedPoints(tool.shortDescription || tool.description || '', { isCard: true, maxPoints: 3 })}
+        </div>
       </div>
 
       <!-- Rating & User Stats Row -->
@@ -158,8 +161,11 @@ export function renderToolCard(rawTool) {
       <!-- Price & Primary Buy Now Row (Side-by-Side as in Reference) -->
       <div class="card-price-buy-row">
         <div class="card-price-block">
-          <span class="price-currency">${amount}</span>
-          <span class="price-period">${t('card.perMonth')}</span>
+          <div style="display: flex; align-items: baseline; gap: 0.35rem; flex-wrap: wrap;">
+            <span class="price-currency">${amount}</span>
+            <span class="price-country-badge" title="Live rate for ${userCountry}">${getCountryFlag(userCountry)}</span>
+          </div>
+          <span class="price-period">${unit.toLowerCase().includes('month') ? t('card.perMonth') : `/${unit}`}</span>
         </div>
 
         <a 
@@ -170,7 +176,8 @@ export function renderToolCard(rawTool) {
           data-buy-url="${buyLink}"
           data-tool-id="${tool.id}"
           data-tool-name="${tool.name}"
-          data-tool-price="${tool.price || '$19 /month'}"
+          data-tool-price="${localizedPrice}"
+          data-user-country="${userCountry}"
           title="${t('card.buyNow')}: ${tool.name}"
         >
           <svg class="btn-bag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">

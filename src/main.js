@@ -44,6 +44,13 @@ async function initApp() {
       appRouter.handleRouting();
     }
   });
+
+  // Seamlessly re-render current route on country/geo-pricing change for instant live verification
+  window.addEventListener('ai_tools_country_changed', () => {
+    if (appRouter) {
+      appRouter.handleRouting();
+    }
+  });
 }
 
 // Kickoff when DOM is ready

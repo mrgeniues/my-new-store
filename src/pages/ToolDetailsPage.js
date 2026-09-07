@@ -4,7 +4,7 @@ import { renderNavbar, attachNavbarEvents } from '../components/Navbar.js';
 import { renderHowToUse } from '../components/HowToUse.js';
 import { renderToolCard } from '../components/ToolCard.js';
 import { renderFooter } from '../components/Footer.js';
-import { getToolIconSvg, buildWhatsAppLink } from '../utils/helpers.js';
+import { getToolIconSvg, buildWhatsAppLink, getToolLocalizedPrice, getCountryFlag, renderFormattedPoints } from '../utils/helpers.js';
 import { requireAuth } from '../utils/authGuard.js';
 import { t, getLocalizedTool } from '../i18n/i18n.js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
@@ -21,7 +21,7 @@ export async function renderToolDetailsPage(root, { pathParams }) {
       <main class="main-content container empty-state" style="margin-top: 5rem;">
         <div class="empty-state-icon">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
+            <circle cx="12" cy="10" r="10"/>
             <line x1="12" y1="8" x2="12" y2="12"/>
             <line x1="12" y1="16" x2="12.01" y2="16"/>
           </svg>
@@ -39,14 +39,18 @@ export async function renderToolDetailsPage(root, { pathParams }) {
   const tool = getLocalizedTool(rawTool);
   document.title = `${tool.name} | ${t('nav.brand')}`;
 
+  // Get user country & localized country pricing
+  const userCountry = authService.getUserCountry() || 'Pakistan';
+  const localizedPrice = getToolLocalizedPrice(tool, userCountry);
+
   // Get similar tools
   const allTools = await toolsApi.getTools();
   const relatedTools = allTools
     .filter((t) => t.category === tool.category && t.id !== tool.id)
     .slice(0, 4);
 
-  // Dynamic WhatsApp URL strictly from backend/API
-  const dynamicWhatsAppBuyUrl = buildWhatsAppLink(tool.whatsappUrl, tool.name);
+  // Dynamic WhatsApp URL strictly from backend/API with localized price
+  const dynamicWhatsAppBuyUrl = buildWhatsAppLink(tool.whatsappUrl, tool.name, localizedPrice, userCountry);
 
   root.innerHTML = `
     ${renderNavbar('/tools')}
@@ -84,15 +88,20 @@ export async function renderToolDetailsPage(root, { pathParams }) {
             </div>
           </div>
 
-          <p class="details-short-desc">${tool.shortDescription || ''}</p>
+          <!-- Formatted Short Description / Summary Points -->
+          <div class="details-short-desc">
+            ${renderFormattedPoints(tool.shortDescription || '')}
+          </div>
 
-          <!-- Full Description Card -->
+          <!-- Full Description Card with formatted points -->
           <div class="details-full-desc-card">
             <h3>${tool.name}</h3>
-            <p>${tool.description || tool.shortDescription || ''}</p>
+            <div style="color: var(--text-secondary); line-height: 1.65; margin-top: 0.5rem;">
+              ${renderFormattedPoints(tool.fullDescription || tool.description || tool.shortDescription || '')}
+            </div>
 
             <!-- Key Features Checklist -->
-            <div style="margin-top: 1.5rem;">
+            <div style="margin-top: 1.75rem;">
               <h4 style="font-size: 1rem; color: var(--text-pure); margin-bottom: 0.85rem;">${t('toolDetails.featuresTab')}</h4>
               <div class="features-checklist">
                 ${(tool.features || []).map((feat) => `
@@ -115,7 +124,12 @@ export async function renderToolDetailsPage(root, { pathParams }) {
         <aside class="details-sidebar">
           <div class="purchase-card-sticky">
             <div class="purchase-price-block">
-              <div class="purchase-price-val">${tool.price ? tool.price.split('/')[0].trim() : '$19'}</div>
+              <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+                <div class="purchase-price-val">${localizedPrice ? localizedPrice.split('/')[0].trim() : '$19'}</div>
+                <span class="price-country-badge" style="font-size: 0.78rem; padding: 0.2rem 0.55rem;" title="Price for ${userCountry}">
+                  ${getCountryFlag(userCountry)} ${userCountry}
+                </span>
+              </div>
               <div class="purchase-price-period">${t('card.perMonth')} &bull; ${t('hero.trust2Title')}</div>
             </div>
 
@@ -126,6 +140,8 @@ export async function renderToolDetailsPage(root, { pathParams }) {
               rel="noopener noreferrer" 
               class="btn-buy-whatsapp-main"
               id="tool-buy-now-btn"
+              data-tool-price="${localizedPrice}"
+              data-user-country="${userCountry}"
               title="${t('toolDetails.buyNowWhatsApp')}: ${tool.name}"
             >
               <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
@@ -215,7 +231,7 @@ export async function renderToolDetailsPage(root, { pathParams }) {
               {
                 tool_id: tool.id || null,
                 tool_name: tool.name || 'AI Tool',
-                price: tool.price || '$19 /month',
+                price: localizedPrice || tool.price || '$19 /month',
                 user_id: user?.id || null,
                 user_email: user?.email || 'guest@anonymous.com',
                 status: 'inquiry_whatsapp',

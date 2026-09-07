@@ -4,7 +4,7 @@ import { authService } from '../lib/auth.js';
 import { toolsApi } from '../api/toolsApi.js';
 import { renderNavbar, attachNavbarEvents } from '../components/Navbar.js';
 import { renderFooter } from '../components/Footer.js';
-import { showToast } from '../utils/helpers.js';
+import { showToast, getCountryFlag } from '../utils/helpers.js';
 
 let activeTab = 'tools'; // 'tools' | 'users' | 'analytics' | 'settings'
 
@@ -969,6 +969,7 @@ function renderUsersTableHtml(usersList) {
           <th>Member</th>
           <th>Email Address</th>
           <th>WhatsApp Number</th>
+          <th>Country / Region</th>
           <th>Language</th>
           <th>Registered On</th>
           <th>Last Login</th>
@@ -1002,6 +1003,12 @@ function renderUsersTableHtml(usersList) {
                     <span style="font-size: 0.7rem;">↗</span>
                   </a>
                 ` : `<span style="color: var(--text-muted); font-size: 0.82rem;">None</span>`}
+              </td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 0.4rem; font-weight: 600; color: var(--text-pure); font-size: 0.85rem;">
+                  <span>${getCountryFlag(u.country)}</span>
+                  <span>${u.country || 'Pakistan'}</span>
+                </div>
               </td>
               <td><span style="text-transform: uppercase; font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">${u.preferred_language || 'en'}</span></td>
               <td style="font-size: 0.82rem; color: var(--text-muted);">${joinedDate}</td>
@@ -1450,7 +1457,7 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
           </div>
         </div>
 
-        <!-- Category & Price -->
+        <!-- Category & Base Price -->
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
           <div class="form-group">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
@@ -1479,8 +1486,86 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Price *</label>
+            <label class="form-label">Global / Default Price *</label>
             <input type="text" id="tool-price" class="form-input" value="${tool.price || '$19 /month'}" placeholder="e.g. $19 /month" required />
+          </div>
+        </div>
+
+        <!-- Country-Specific Pricing (Geo-Targeted Rates) -->
+        <div class="geo-pricing-container">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+            <div style="display: flex; align-items: center; gap: 0.45rem;">
+              <span style="font-size: 1.1rem;">🌍</span>
+              <label class="form-label" style="margin-bottom: 0; font-weight: 800; color: var(--text-pure);">
+                Country-Specific Pricing (Geo-Pricing)
+              </label>
+            </div>
+            <span style="font-size: 0.72rem; color: var(--accent-mint); font-weight: 700;">✓ Live Verification Synced</span>
+          </div>
+          <p style="font-size: 0.76rem; color: var(--text-secondary); line-height: 1.45; margin-bottom: 0.85rem;">
+            Define exact prices for specific countries (e.g. Pakistan & India). When registered visitors view the store, they see prices customized for their country:
+          </p>
+
+          <div class="geo-pricing-grid">
+            <!-- Pakistan -->
+            <div class="geo-country-card">
+              <div class="geo-country-label">
+                <span>🇵🇰</span>
+                <span>Pakistan Price</span>
+              </div>
+              <input 
+                type="text" 
+                id="geo-price-pakistan" 
+                class="form-input geo-price-input" 
+                value="${tool.countryPricing?.Pakistan || tool.countryPricing?.pakistan || ''}" 
+                placeholder="e.g. Rs 1,500 /month" 
+              />
+            </div>
+
+            <!-- India -->
+            <div class="geo-country-card">
+              <div class="geo-country-label">
+                <span>🇮🇳</span>
+                <span>India Price</span>
+              </div>
+              <input 
+                type="text" 
+                id="geo-price-india" 
+                class="form-input geo-price-input" 
+                value="${tool.countryPricing?.India || tool.countryPricing?.india || ''}" 
+                placeholder="e.g. ₹499 /month" 
+              />
+            </div>
+
+            <!-- UAE -->
+            <div class="geo-country-card">
+              <div class="geo-country-label">
+                <span>🇦🇪</span>
+                <span>UAE / Middle East</span>
+              </div>
+              <input 
+                type="text" 
+                id="geo-price-uae" 
+                class="form-input geo-price-input" 
+                value="${tool.countryPricing?.['United Arab Emirates'] || tool.countryPricing?.UAE || ''}" 
+                placeholder="e.g. AED 49 /month" 
+              />
+            </div>
+
+            <!-- Global / Others -->
+            <div class="geo-country-card" style="border-color: rgba(56, 189, 248, 0.35);">
+              <div class="geo-country-label" style="color: var(--accent-cyan);">
+                <span>🌐</span>
+                <span>Other Countries</span>
+              </div>
+              <input 
+                type="text" 
+                id="geo-price-default" 
+                class="form-input geo-price-input" 
+                value="${tool.countryPricing?.DEFAULT || tool.countryPricing?.default || tool.price || '$19 /month'}" 
+                placeholder="e.g. $19 /month" 
+              />
+            </div>
           </div>
         </div>
 
@@ -1506,16 +1591,25 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
           </div>
         </div>
 
-        <!-- Short Description -->
+        <!-- Short Description with Bullet Points Support -->
         <div class="form-group">
-          <label class="form-label">Short Description (Card Summary) *</label>
-          <input type="text" id="tool-short-desc" class="form-input" value="${tool.shortDescription || ''}" placeholder="One sentence summarizing key value proposition..." required />
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+            <label class="form-label" style="margin-bottom: 0;">Short Description (Card Summary Points) *</label>
+            <span style="font-size: 0.72rem; color: var(--accent-cyan);">✦ Paste with points (• or -) or 1 per line</span>
+          </div>
+          <textarea id="tool-short-desc" class="form-textarea" style="min-height: 85px;" placeholder="• Point 1: Key capability&#10;• Point 2: Instant activation&#10;• Point 3: Best monthly price" required>${tool.shortDescription || ''}</textarea>
+          <p style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">
+            Points pasted with bullets or on newlines will be rendered as clean vertical list items on the tool cards.
+          </p>
         </div>
 
         <!-- Full Description -->
         <div class="form-group">
-          <label class="form-label">Full Description (Tool Details Page) *</label>
-          <textarea id="tool-full-desc" class="form-textarea" style="min-height: 90px;" placeholder="Comprehensive overview of capabilities, use cases, and prompt styles..." required>${tool.fullDescription || tool.description || ''}</textarea>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+            <label class="form-label" style="margin-bottom: 0;">Full Description (Tool Details Page) *</label>
+            <span style="font-size: 0.72rem; color: var(--text-muted);">Points & paragraphs supported</span>
+          </div>
+          <textarea id="tool-full-desc" class="form-textarea" style="min-height: 95px;" placeholder="Comprehensive overview of capabilities, use cases, and prompt styles..." required>${tool.fullDescription || tool.description || ''}</textarea>
         </div>
 
         <!-- WhatsApp Purchase URL -->
@@ -1667,12 +1761,27 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
       .map((f) => f.trim())
       .filter(Boolean);
 
+    // Country-specific pricing dictionary
+    const pkPrice = document.getElementById('geo-price-pakistan')?.value.trim() || '';
+    const inPrice = document.getElementById('geo-price-india')?.value.trim() || '';
+    const uaePrice = document.getElementById('geo-price-uae')?.value.trim() || '';
+    const defPrice = document.getElementById('geo-price-default')?.value.trim() || document.getElementById('tool-price').value.trim() || '$19 /month';
+
+    const countryPricing = {
+      ...(tool.countryPricing || {}),
+      DEFAULT: defPrice
+    };
+    if (pkPrice) countryPricing.Pakistan = pkPrice;
+    if (inPrice) countryPricing.India = inPrice;
+    if (uaePrice) countryPricing['United Arab Emirates'] = uaePrice;
+
     const payload = {
       id: tool.id,
       name: nameInput.value.trim(),
       slug: slugInput.value.trim(),
       category: document.getElementById('tool-category').value,
-      price: document.getElementById('tool-price').value.trim(),
+      price: defPrice,
+      countryPricing: countryPricing,
       image: imageUrlInput.value.trim(),
       shortDescription: document.getElementById('tool-short-desc').value.trim(),
       fullDescription: document.getElementById('tool-full-desc').value.trim(),

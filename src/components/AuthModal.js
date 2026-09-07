@@ -53,6 +53,7 @@ export function openAuthModal(options = {}) {
   let cachedEmail = '';
   let cachedFullName = '';
   let cachedPhone = '';
+  let cachedCountry = authService.getUserCountry() || 'Pakistan';
 
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop auth-backdrop-fade';
@@ -154,19 +155,46 @@ export function openAuthModal(options = {}) {
               </div>
             </div>
 
+            <!-- Country / Region Selection (Sets tailored currency & pricing) -->
+            <div class="form-group">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                <label class="auth-field-label" for="auth-country" style="margin-bottom: 0;">Country / Region *</label>
+                <span style="font-size: 0.72rem; color: var(--accent-cyan);">Sets your local tool pricing</span>
+              </div>
+              <div class="auth-input-wrapper">
+                <svg class="auth-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="2" y1="12" x2="22" y2="12"/>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+                <select id="auth-country" class="auth-input-field" style="cursor: pointer; padding-left: 2.75rem;">
+                  <option value="Pakistan" ${cachedCountry === 'Pakistan' ? 'selected' : ''}>🇵🇰 Pakistan (PKR Prices)</option>
+                  <option value="India" ${cachedCountry === 'India' ? 'selected' : ''}>🇮🇳 India (INR Prices)</option>
+                  <option value="United Arab Emirates" ${cachedCountry === 'United Arab Emirates' ? 'selected' : ''}>🇦🇪 United Arab Emirates (AED)</option>
+                  <option value="Saudi Arabia" ${cachedCountry === 'Saudi Arabia' ? 'selected' : ''}>🇸🇦 Saudi Arabia (SAR)</option>
+                  <option value="United States" ${cachedCountry === 'United States' ? 'selected' : ''}>🇺🇸 United States (USD)</option>
+                  <option value="United Kingdom" ${cachedCountry === 'United Kingdom' ? 'selected' : ''}>🇬🇧 United Kingdom (GBP)</option>
+                  <option value="Canada" ${cachedCountry === 'Canada' ? 'selected' : ''}>🇨🇦 Canada (CAD)</option>
+                  <option value="Australia" ${cachedCountry === 'Australia' ? 'selected' : ''}>🇦🇺 Australia (AUD)</option>
+                  <option value="Germany" ${cachedCountry === 'Germany' ? 'selected' : ''}>🇩🇪 Germany (EUR)</option>
+                  <option value="Global" ${cachedCountry === 'Global' ? 'selected' : ''}>🌐 Other Countries / Global (USD)</option>
+                </select>
+              </div>
+            </div>
+
             <!-- WhatsApp Number (with country code selector) -->
             <div class="form-group">
               <label class="auth-field-label" for="auth-whatsapp">${t('auth.whatsappLabel')}</label>
               <div class="auth-phone-group">
-            <select id="auth-country-code" class="auth-country-select">
-                  <option value="+92" selected>🇵🇰 +92</option>
-                  <option value="+1">🇺🇸 +1</option>
-                  <option value="+44">🇬🇧 +44</option>
-                  <option value="+91">🇮🇳 +91</option>
-                  <option value="+971">🇦🇪 +971</option>
-                  <option value="+966">🇸🇦 +966</option>
-                  <option value="+61">🇦🇺 +61</option>
-                  <option value="+49">🇩🇪 +49</option>
+                <select id="auth-country-code" class="auth-country-select">
+                  <option value="+92" ${cachedCountry === 'Pakistan' ? 'selected' : ''}>🇵🇰 +92</option>
+                  <option value="+91" ${cachedCountry === 'India' ? 'selected' : ''}>🇮🇳 +91</option>
+                  <option value="+971" ${cachedCountry === 'United Arab Emirates' ? 'selected' : ''}>🇦🇪 +971</option>
+                  <option value="+966" ${cachedCountry === 'Saudi Arabia' ? 'selected' : ''}>🇸🇦 +966</option>
+                  <option value="+1" ${['United States', 'Canada'].includes(cachedCountry) ? 'selected' : ''}>🇺🇸 +1</option>
+                  <option value="+44" ${cachedCountry === 'United Kingdom' ? 'selected' : ''}>🇬🇧 +44</option>
+                  <option value="+61" ${cachedCountry === 'Australia' ? 'selected' : ''}>🇦🇺 +61</option>
+                  <option value="+49" ${cachedCountry === 'Germany' ? 'selected' : ''}>🇩🇪 +49</option>
                   <option value="+33">🇫🇷 +33</option>
                   <option value="+65">🇸🇬 +65</option>
                   <option value="+81">🇯🇵 +81</option>
@@ -322,6 +350,8 @@ export function openAuthModal(options = {}) {
     if (nameEl) cachedFullName = nameEl.value.trim();
     const phoneEl = backdrop.querySelector('#auth-whatsapp');
     if (phoneEl) cachedPhone = phoneEl.value.trim();
+    const countryEl = backdrop.querySelector('#auth-country');
+    if (countryEl) cachedCountry = countryEl.value;
   }
 
   function switchTab(newTab) {
@@ -343,6 +373,24 @@ export function openAuthModal(options = {}) {
         e.preventDefault();
         e.stopPropagation();
         closeAuthModal();
+      };
+    }
+
+    // Country Selection changes: Auto-sync corresponding phone dial code
+    const countrySelect = backdrop.querySelector('#auth-country');
+    const phoneCodeSelect = backdrop.querySelector('#auth-country-code');
+    if (countrySelect && phoneCodeSelect) {
+      countrySelect.onchange = () => {
+        const val = countrySelect.value;
+        cachedCountry = val;
+        if (val === 'Pakistan') phoneCodeSelect.value = '+92';
+        else if (val === 'India') phoneCodeSelect.value = '+91';
+        else if (val === 'United Arab Emirates') phoneCodeSelect.value = '+971';
+        else if (val === 'Saudi Arabia') phoneCodeSelect.value = '+966';
+        else if (val === 'United States' || val === 'Canada') phoneCodeSelect.value = '+1';
+        else if (val === 'United Kingdom') phoneCodeSelect.value = '+44';
+        else if (val === 'Australia') phoneCodeSelect.value = '+61';
+        else if (val === 'Germany') phoneCodeSelect.value = '+49';
       };
     }
 
@@ -415,12 +463,14 @@ export function openAuthModal(options = {}) {
 
       if (currentTab === 'signup') {
         const nameInput = backdrop.querySelector('#auth-fullname');
-        const countrySelect = backdrop.querySelector('#auth-country-code');
+        const countrySelect = backdrop.querySelector('#auth-country');
+        const phoneCodeSelect = backdrop.querySelector('#auth-country-code');
         const phoneInput = backdrop.querySelector('#auth-whatsapp');
         const confirmInput = backdrop.querySelector('#auth-confirm-password');
 
         const fullName = nameInput ? nameInput.value.trim() : 'VIP Member';
-        const countryCode = countrySelect ? countrySelect.value : '+92';
+        const selectedCountry = countrySelect ? countrySelect.value : cachedCountry || 'Pakistan';
+        const countryCode = phoneCodeSelect ? phoneCodeSelect.value : '+92';
         const rawPhone = phoneInput ? phoneInput.value.trim() : '';
         const confirmPassword = confirmInput ? confirmInput.value : '';
 
@@ -452,7 +502,8 @@ export function openAuthModal(options = {}) {
             fullName,
             email,
             whatsappNumber: fullPhone,
-            password
+            password,
+            country: selectedCountry
           });
 
           if (authResult?.needsConfirmation) {

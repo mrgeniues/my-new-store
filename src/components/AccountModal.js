@@ -1,6 +1,6 @@
 // AI Tools Store - User Account Details Modal
 import { authService } from '../lib/auth.js';
-import { showToast } from '../utils/helpers.js';
+import { showToast, getCountryFlag } from '../utils/helpers.js';
 import { t } from '../i18n/i18n.js';
 
 let isAccountModalOpen = false;
@@ -56,6 +56,14 @@ export function openAccountModal() {
         <div class="glass-panel" style="padding: 0.9rem 1.25rem; display: flex; justify-content: space-between; align-items: center; border-radius: 14px;">
           <span style="font-size: 0.82rem; color: var(--text-muted);">${t('account.whatsappLabel')}</span>
           <span style="font-size: 0.88rem; color: var(--text-pure); font-weight: 600;">${profile.whatsapp_number || 'Not provided'}</span>
+        </div>
+
+        <div class="glass-panel" style="padding: 0.9rem 1.25rem; display: flex; justify-content: space-between; align-items: center; border-radius: 14px;">
+          <span style="font-size: 0.82rem; color: var(--text-muted);">Country / Geo Pricing</span>
+          <span style="font-size: 0.88rem; color: var(--accent-cyan); font-weight: 700; display: inline-flex; align-items: center; gap: 0.4rem;">
+            <span>${getCountryFlag(profile.country || authService.getUserCountry())}</span>
+            <span>${profile.country || authService.getUserCountry() || 'Pakistan'}</span>
+          </span>
         </div>
 
         <div class="glass-panel" style="padding: 0.9rem 1.25rem; display: flex; justify-content: space-between; align-items: center; border-radius: 14px;">

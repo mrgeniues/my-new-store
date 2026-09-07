@@ -159,6 +159,8 @@ class AuthService {
         const phone = userMeta.whatsapp_number || '';
         const isUserAdmin = this.isAdmin(this.currentUser);
 
+        const country = userMeta.country || this.getUserCountry() || 'Pakistan';
+
         const { data: newProfile, error: upsertErr } = await supabase
           .from('profiles')
           .upsert({
@@ -166,6 +168,7 @@ class AuthService {
             full_name: fullName,
             email: email,
             whatsapp_number: phone,
+            country: country,
             role: isUserAdmin ? 'admin' : 'member',
             preferred_language: 'en',
             last_sign_in_at: new Date().toISOString()
@@ -175,6 +178,9 @@ class AuthService {
 
         if (!upsertErr && newProfile) {
           this.currentProfile = newProfile;
+          if (newProfile.country) {
+            localStorage.setItem('ai_tools_user_country_v1', newProfile.country);
+          }
           this.saveLocalSession(this.currentUser, this.currentProfile);
           return this.currentProfile;
         }
@@ -184,6 +190,47 @@ class AuthService {
     }
 
     return this.currentProfile;
+  }
+
+  // Get active country for the current visitor or logged-in user
+  getUserCountry() {
+    if (this.currentProfile?.country) return this.currentProfile.country;
+    if (this.currentUser?.user_metadata?.country) return this.currentUser.user_metadata.country;
+    try {
+      const stored = localStorage.getItem('ai_tools_user_country_v1');
+      if (stored) return stored;
+    } catch (e) {}
+    return 'Pakistan'; // Default store country
+  }
+
+  // Set active country (triggers live reactive update across app)
+  setUserCountry(country) {
+    if (!country) return;
+    try {
+      localStorage.setItem('ai_tools_user_country_v1', country);
+    } catch (e) {}
+
+    if (this.currentProfile) {
+      this.currentProfile.country = country;
+      this.saveLocalSession(this.currentUser, this.currentProfile);
+      
+      // Also update Supabase in background if logged in
+      if (isSupabaseConfigured && this.currentUser?.id) {
+        supabase
+          .from('profiles')
+          .update({ country, updated_at: new Date().toISOString() })
+          .eq('id', this.currentUser.id)
+          .then(() => {})
+          .catch((err) => console.warn('Could not update profile country in Supabase:', err));
+      }
+    }
+
+    this.notifyListeners();
+
+    // Dispatch global custom event for non-listener components
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ai_tools_country_changed', { detail: { country } }));
+    }
   }
 
   async getCurrentUser() {
@@ -297,6 +344,7 @@ class AuthService {
           full_name: p.full_name || 'VIP Member',
           email: p.email || '',
           whatsapp_number: p.whatsapp_number || '',
+          country: p.country || 'Pakistan',
           preferred_language: p.preferred_language || 'en',
           role: isAdmin ? 'admin' : 'member',
           last_sign_in_at: p.last_sign_in_at || null,
@@ -339,11 +387,12 @@ class AuthService {
     return true;
   }
 
-  // Sign up directly into Supabase Auth and public.profiles
-  async signUp({ fullName, email, whatsappNumber, password }) {
+  // Sign up directly into Supabase Auth and public.profiles with Country selection
+  async signUp({ fullName, email, whatsappNumber, password, country = 'Pakistan' }) {
     const cleanEmail = (email || '').trim();
     const cleanName = (fullName || '').trim() || 'VIP Member';
     const cleanPhone = (whatsappNumber || '').trim();
+    const cleanCountry = (country || 'Pakistan').trim();
 
     if (!cleanEmail) {
       throw new Error('Please enter a valid email address.');
@@ -356,14 +405,15 @@ class AuthService {
       throw new Error('Supabase backend is not connected. Please check your Supabase configuration.');
     }
 
-    // 1. Create account in Supabase Auth
+    // 1. Create account in Supabase Auth (with country in user metadata)
     const { data, error } = await supabase.auth.signUp({
       email: cleanEmail,
       password,
       options: {
         data: {
           full_name: cleanName,
-          whatsapp_number: cleanPhone
+          whatsapp_number: cleanPhone,
+          country: cleanCountry
         }
       }
     });
@@ -384,7 +434,7 @@ class AuthService {
       cleanEmail.toLowerCase() === 'admin@aitools.store' ||
       cleanEmail.toLowerCase() === 'admin@aitools.vip';
 
-    // 2. Insert into Supabase public.profiles table
+    // 2. Insert into Supabase public.profiles table (including country)
     let profileObj = null;
     try {
       const { data: insertedProfile, error: upsertErr } = await supabase
@@ -394,6 +444,7 @@ class AuthService {
           full_name: cleanName,
           email: cleanEmail,
           whatsapp_number: cleanPhone,
+          country: cleanCountry,
           role: isAdmin ? 'admin' : 'member',
           preferred_language: 'en',
           last_sign_in_at: new Date().toISOString()
@@ -409,6 +460,9 @@ class AuthService {
     } catch (pErr) {
       console.warn('[AI Tools Store Auth] Profile upsert error:', pErr);
     }
+
+    // Store country active selection locally
+    this.setUserCountry(cleanCountry);
 
     // If session returned immediately (Confirm email is OFF in Supabase)
     if (data.session) {

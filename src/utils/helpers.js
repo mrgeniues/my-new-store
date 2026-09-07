@@ -20,15 +20,151 @@ export function formatVideoEmbedUrl(url) {
   return trimmed;
 }
 
+// Country Flags & Display Helper
+export function getCountryFlag(countryName = '') {
+  const c = (countryName || '').toLowerCase().trim();
+  if (c.includes('pakistan')) return '🇵🇰';
+  if (c.includes('india')) return '🇮🇳';
+  if (c.includes('emirates') || c.includes('uae') || c.includes('dubai')) return '🇦🇪';
+  if (c.includes('saudi')) return '🇸🇦';
+  if (c.includes('united states') || c.includes('usa') || c === 'us') return '🇺🇸';
+  if (c.includes('united kingdom') || c.includes('uk') || c.includes('britain')) return '🇬🇧';
+  if (c.includes('canada')) return '🇨🇦';
+  if (c.includes('australia')) return '🇦🇺';
+  if (c.includes('germany')) return '🇩🇪';
+  if (c.includes('france')) return '🇫🇷';
+  if (c.includes('bangladesh')) return '🇧🇩';
+  if (c.includes('turkey') || c.includes('turkiye')) return '🇹🇷';
+  return '🌐';
+}
+
+// Resolve country-targeted localized price for a tool
+export function getToolLocalizedPrice(tool, targetCountry = '') {
+  if (!tool) return '$19 /month';
+  const pricing = tool.countryPricing || tool.country_pricing || {};
+  
+  // Normalize target country
+  let country = targetCountry;
+  if (!country) {
+    try {
+      const stored = localStorage.getItem('ai_tools_user_country_v1');
+      if (stored) country = stored;
+    } catch (e) {}
+  }
+  if (!country) country = 'Pakistan';
+
+  const cleanTarget = country.toLowerCase().trim();
+
+  // 1. Direct match on country name in pricing object
+  for (const [key, val] of Object.entries(pricing)) {
+    if (val && typeof val === 'string' && val.trim()) {
+      const k = key.toLowerCase().trim();
+      if (k === cleanTarget || cleanTarget.includes(k) || k.includes(cleanTarget)) {
+        return val.trim();
+      }
+    }
+  }
+
+  // 2. Fallback to DEFAULT / Global / Other in countryPricing
+  for (const [key, val] of Object.entries(pricing)) {
+    if (val && typeof val === 'string' && val.trim()) {
+      const k = key.toLowerCase().trim();
+      if (['default', 'global', 'other', 'others', 'world'].includes(k)) {
+        return val.trim();
+      }
+    }
+  }
+
+  // 3. Fallback to base tool.price
+  return tool.price || '$19 /month';
+}
+
+// Render formatted multiline text or bullet points into clean HTML list
+export function renderFormattedPoints(rawText, options = {}) {
+  if (!rawText) return '';
+  const isCard = Boolean(options.isCard);
+  const maxCardPoints = options.maxPoints || 3;
+
+  // Normalize line breaks
+  const normalized = String(rawText).replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+  if (!normalized) return '';
+
+  // Check if text has multiple lines or bullet markers
+  const rawLines = normalized.split('\n');
+  const bulletRegex = /^[\s]*[•\-\*\+✔✓✦\>»]\s*/;
+  const numberedRegex = /^[\s]*\d+[\.\)]\s*/;
+
+  let points = [];
+
+  // Case 1: Multiple lines present
+  if (rawLines.length > 1) {
+    points = rawLines
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => line.replace(bulletRegex, '').replace(numberedRegex, '').trim())
+      .filter(Boolean);
+  } else {
+    // Case 2: Single string that might contain bullet symbols like • or - or ✦
+    if (normalized.includes('•') || normalized.includes('✦') || normalized.includes(' - ')) {
+      points = normalized
+        .split(/(?:[•✦]|\s+-\s+)/)
+        .map((p) => p.trim())
+        .filter(Boolean);
+    }
+  }
+
+  // If valid points were found (at least 2 points, or 1 marked bullet)
+  if (points.length >= 2 || (points.length === 1 && (bulletRegex.test(rawText) || rawLines.length > 1))) {
+    const displayPoints = isCard ? points.slice(0, maxCardPoints) : points;
+    const itemsHtml = displayPoints
+      .map((point) => {
+        // Escape basic HTML entities
+        const safeText = point
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        return `<li class="tool-bullet-item"><span class="tool-bullet-dot">✦</span><span class="tool-bullet-text">${safeText}</span></li>`;
+      })
+      .join('');
+
+    const moreIndicator = (isCard && points.length > maxCardPoints)
+      ? `<li class="tool-bullet-more">+ ${points.length - maxCardPoints} more points...</li>`
+      : '';
+
+    return `<ul class="tool-desc-bullets ${isCard ? 'tool-desc-bullets-card' : ''}">${itemsHtml}${moreIndicator}</ul>`;
+  }
+
+  // Otherwise return safe paragraph with line breaks preserved
+  const safeText = normalized
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return `<span class="tool-desc-plain">${safeText}</span>`;
+}
+
 // Generate high-converting WhatsApp direct link
-export function buildWhatsAppLink(whatsappUrl, toolName = '') {
-  if (whatsappUrl && whatsappUrl.startsWith('http')) {
+export function buildWhatsAppLink(whatsappUrl, toolName = '', toolPrice = '', userCountry = '') {
+  if (whatsappUrl && whatsappUrl.startsWith('http') && !toolPrice) {
     return whatsappUrl;
   }
   const defaultBase = import.meta.env.VITE_DEFAULT_WHATSAPP_URL || 'https://chat.whatsapp.com/invite/aitools-store-vip';
   if (!toolName) return defaultBase;
-  const msg = encodeURIComponent(`Hello! I would like to purchase and activate ${toolName} from AI Tools Store.`);
-  return `https://wa.me/1234567890?text=${msg}`;
+
+  let msgText = `Hello! I would like to purchase and activate ${toolName} from AI Tools Store.`;
+  if (toolPrice) {
+    const countryText = userCountry ? ` for ${userCountry}` : '';
+    msgText = `Hello! I would like to purchase ${toolName} at ${toolPrice}${countryText} from AI Tools Store. Please share activation details.`;
+  }
+
+  // If custom WhatsApp URL is already a wa.me or API link, retain the base phone number
+  if (whatsappUrl && whatsappUrl.includes('wa.me/')) {
+    const phoneMatch = whatsappUrl.match(/wa\.me\/([0-9+]+)/);
+    if (phoneMatch && phoneMatch[1]) {
+      return `https://wa.me/${phoneMatch[1].replace(/\D/g, '')}?text=${encodeURIComponent(msgText)}`;
+    }
+  }
+
+  return `https://wa.me/1234567890?text=${encodeURIComponent(msgText)}`;
 }
 
 // Brand SVG Icons Generator for pixel-perfect cards
