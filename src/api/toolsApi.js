@@ -189,25 +189,25 @@ class ToolsApiService {
       map.set(cat.name.toLowerCase(), { ...cat, count: 0 });
     });
 
-    // Count tools for each category
+    // Count tools for each category and link representative tool image if category has no image
     tools.forEach((t) => {
       const toolCat = (t.category || '').trim();
       if (!toolCat) return;
 
       const key = toolCat.toLowerCase();
+      let targetCat = null;
+
       if (map.has(key)) {
-        map.get(key).count++;
+        targetCat = map.get(key);
       } else {
-        let matched = false;
         for (const [mapKey, item] of map.entries()) {
           if (mapKey.includes(key) || key.includes(mapKey)) {
-            item.count++;
-            matched = true;
+            targetCat = item;
             break;
           }
         }
-        if (!matched) {
-          map.set(key, {
+        if (!targetCat) {
+          targetCat = {
             id: 'cat-' + key.replace(/[^a-z0-9]+/g, '-'),
             name: toolCat,
             slug: key.replace(/[^a-z0-9]+/g, '-'),
@@ -217,9 +217,16 @@ class ToolsApiService {
             description: `Curated AI tools in ${toolCat}.`,
             image: '',
             sortOrder: 99,
-            count: 1
-          });
+            count: 0
+          };
+          map.set(key, targetCat);
         }
+      }
+
+      targetCat.count++;
+      // If category has no dedicated image, use the first available tool image from this category
+      if (!targetCat.image && t.image) {
+        targetCat.image = t.image;
       }
     });
 
@@ -240,21 +247,35 @@ class ToolsApiService {
       const toolCat = (t.category || '').trim();
       if (!toolCat) return;
       const key = toolCat.toLowerCase();
+      let targetCat = null;
       if (map.has(key)) {
-        map.get(key).count++;
+        targetCat = map.get(key);
       } else {
-        map.set(key, {
-          id: 'cat-' + key.replace(/[^a-z0-9]+/g, '-'),
-          name: toolCat,
-          slug: key.replace(/[^a-z0-9]+/g, '-'),
-          icon: '✨',
-          color: '#6366f1',
-          desc: `Curated AI tools in ${toolCat}.`,
-          description: `Curated AI tools in ${toolCat}.`,
-          image: '',
-          sortOrder: 99,
-          count: 1
-        });
+        for (const [mapKey, item] of map.entries()) {
+          if (mapKey.includes(key) || key.includes(mapKey)) {
+            targetCat = item;
+            break;
+          }
+        }
+        if (!targetCat) {
+          targetCat = {
+            id: 'cat-' + key.replace(/[^a-z0-9]+/g, '-'),
+            name: toolCat,
+            slug: key.replace(/[^a-z0-9]+/g, '-'),
+            icon: '✨',
+            color: '#6366f1',
+            desc: `Curated AI tools in ${toolCat}.`,
+            description: `Curated AI tools in ${toolCat}.`,
+            image: '',
+            sortOrder: 99,
+            count: 0
+          };
+          map.set(key, targetCat);
+        }
+      }
+      targetCat.count++;
+      if (!targetCat.image && t.image) {
+        targetCat.image = t.image;
       }
     });
 

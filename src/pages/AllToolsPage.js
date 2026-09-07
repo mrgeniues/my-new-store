@@ -4,6 +4,8 @@ import { renderNavbar, attachNavbarEvents } from '../components/Navbar.js';
 import { renderToolCard, initCardInteractions } from '../components/ToolCard.js';
 import { renderFooter } from '../components/Footer.js';
 import { t } from '../i18n/i18n.js';
+import { authService } from '../lib/auth.js';
+import { showToast } from '../utils/helpers.js';
 
 export async function renderAllToolsPage(root, { queryParams }) {
   document.title = `${t('nav.allTools')} | ${t('nav.brand')}`;
@@ -13,6 +15,7 @@ export async function renderAllToolsPage(root, { queryParams }) {
 
   const tools = await toolsApi.getTools();
   const categories = await toolsApi.getCategories();
+  let currentCountry = authService.getUserCountry() || 'Pakistan';
 
   root.innerHTML = `
     ${renderNavbar('/tools')}
@@ -23,6 +26,40 @@ export async function renderAllToolsPage(root, { queryParams }) {
         <h1>${t('allTools.headerTitle')}</h1>
         <p>${t('allTools.headerSubtitle')}</p>
       </header>
+
+      <!-- Currency & Country Quick-Filter Bar -->
+      <div class="catalog-currency-bar">
+        <div class="currency-bar-label">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+          <span>Pricing & Currency:</span>
+        </div>
+        <div class="currency-bar-options" id="catalog-currency-options">
+          <button type="button" class="currency-chip ${currentCountry === 'Pakistan' ? 'active' : ''}" data-country="Pakistan" title="View pricing in PKR">
+            <span>🇵🇰</span>
+            <span>Pakistan (PKR)</span>
+          </button>
+          <button type="button" class="currency-chip ${currentCountry === 'United States' ? 'active' : ''}" data-country="United States" title="View pricing in USD ($)">
+            <span>🇺🇸</span>
+            <span>USD ($)</span>
+          </button>
+          <button type="button" class="currency-chip ${currentCountry === 'India' ? 'active' : ''}" data-country="India" title="View pricing in INR (₹)">
+            <span>🇮🇳</span>
+            <span>India (INR ₹)</span>
+          </button>
+          <button type="button" class="currency-chip ${currentCountry === 'United Arab Emirates' ? 'active' : ''}" data-country="United Arab Emirates" title="View pricing in AED">
+            <span>🇦🇪</span>
+            <span>UAE (AED)</span>
+          </button>
+          <button type="button" class="currency-chip ${currentCountry === 'Global' || currentCountry === 'Other' ? 'active' : ''}" data-country="Global" title="View Global pricing in USD ($)">
+            <span>🌐</span>
+            <span>Global ($)</span>
+          </button>
+        </div>
+      </div>
 
       <!-- Controls & Filter Bar -->
       <section class="marketplace-controls">
@@ -83,7 +120,7 @@ export async function renderAllToolsPage(root, { queryParams }) {
           </button>
           ${categories.map((cat) => `
             <button class="filter-chip ${initialCategory.toLowerCase() === cat.name.toLowerCase() ? 'active' : ''}" data-category="${cat.name}">
-              ${cat.icon} ${cat.name} (${cat.count})
+              ${cat.image ? `<img src="${cat.image}" alt="" style="width: 16px; height: 16px; border-radius: 3px; object-fit: cover; vertical-align: middle; margin-right: 4px;" />` : `${cat.icon} `}${cat.name} (${cat.count})
             </button>
           `).join('')}
         </div>
@@ -258,6 +295,22 @@ export async function renderAllToolsPage(root, { queryParams }) {
     visibleCount += 8;
     updateView();
   };
+
+  // Currency & Country Switcher click event
+  const currencyOptions = document.getElementById('catalog-currency-options');
+  if (currencyOptions) {
+    currencyOptions.onclick = (e) => {
+      const chip = e.target.closest('.currency-chip');
+      if (!chip) return;
+      const targetCountry = chip.dataset.country;
+      currentCountry = targetCountry;
+      authService.setUserCountry(targetCountry);
+      currencyOptions.querySelectorAll('.currency-chip').forEach((b) => b.classList.remove('active'));
+      chip.classList.add('active');
+      showToast(`Pricing updated for ${targetCountry}`, 'info');
+      updateView();
+    };
+  }
 
   // Initial render
   updateView();

@@ -1,5 +1,5 @@
 // AI Tools Store - Premium Animated Tool Cards (Matching Exact Reference Image)
-import { getToolIconSvg, buildWhatsAppLink, showToast, getToolLocalizedPrice, getCountryFlag, renderFormattedPoints } from '../utils/helpers.js';
+import { getToolIconSvg, buildWhatsAppLink, showToast, getToolLocalizedPrice, getCountryFlag, renderFormattedPoints, parsePriceAndDuration } from '../utils/helpers.js';
 import { requireAuth } from '../utils/authGuard.js';
 import { t, getLocalizedTool } from '../i18n/i18n.js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
@@ -67,24 +67,14 @@ export function renderToolCard(rawTool) {
     }
   }
 
-  // Localized Price formatting (country targeted)
-  let amount = '$19';
-  let unit = 'month';
-  if (localizedPrice) {
-    if (localizedPrice.includes('/')) {
-      const parts = localizedPrice.split('/');
-      amount = parts[0].trim();
-      unit = parts[1].trim() || 'month';
-    } else {
-      amount = localizedPrice.trim();
-    }
-  }
+  // Localized Price & Billing Duration parsing (PKR, USD, custom 18 months, lifetime)
+  const { amount, periodHtml } = parsePriceAndDuration(localizedPrice, `/${t('card.perMonth') || 'month'}`);
 
   const ratingVal = tool.rating ? tool.rating.toFixed(1) : '4.8';
   const usersVal = tool.userCount || `${(tool.reviewCount ? (tool.reviewCount / 10).toFixed(1) : '12.4')}K`;
 
   return `
-    <div class="futuristic-tool-card theme-${theme}" data-tool-id="${tool.id}">
+    <div class="futuristic-tool-card theme-${theme} ${tool.image ? 'has-media-banner' : ''}" data-tool-id="${tool.id}">
       <!-- Dynamic Mouse-Tracking Glow Overlay -->
       <div class="card-mouse-glow"></div>
 
@@ -104,26 +94,47 @@ export function renderToolCard(rawTool) {
         <div class="card-particles-layer"></div>
       </div>
 
-      <!-- Card Top: Logo Container & Favorite Button -->
-      <div class="card-header-row">
-        <div class="card-logo-box">
-          <div class="logo-inner-icon">
-            ${tool.image ? `<img src="${tool.image}" alt="${tool.name} logo" />` : iconSvg}
+      <!-- Card Top: Media Banner OR Logo Container & Favorite Button -->
+      ${tool.image ? `
+        <div class="card-media-banner-container">
+          <div class="card-media-banner">
+            <img src="${tool.image}" alt="${tool.name}" class="card-media-ambient" aria-hidden="true" onerror="this.style.display='none';" />
+            <img src="${tool.image}" alt="${tool.name} banner" class="card-media-img" loading="lazy" onerror="this.style.opacity='0.3';" />
+            <div class="card-media-gradient"></div>
           </div>
+          <button 
+            class="btn-favorite btn-favorite-floating ${isFav ? 'active' : ''}" 
+            data-tool-id="${tool.id}" 
+            data-tool-name="${tool.name}"
+            title="${t('card.saveFav')}"
+            aria-label="${t('card.saveFav')}"
+          >
+            <svg class="heart-icon" viewBox="0 0 24 24">
+              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+            </svg>
+          </button>
         </div>
+      ` : `
+        <div class="card-header-row">
+          <div class="card-logo-box">
+            <div class="logo-inner-icon">
+              ${iconSvg}
+            </div>
+          </div>
 
-        <button 
-          class="btn-favorite ${isFav ? 'active' : ''}" 
-          data-tool-id="${tool.id}" 
-          data-tool-name="${tool.name}"
-          title="${t('card.saveFav')}"
-          aria-label="${t('card.saveFav')}"
-        >
-          <svg class="heart-icon" viewBox="0 0 24 24">
-            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-          </svg>
-        </button>
-      </div>
+          <button 
+            class="btn-favorite ${isFav ? 'active' : ''}" 
+            data-tool-id="${tool.id}" 
+            data-tool-name="${tool.name}"
+            title="${t('card.saveFav')}"
+            aria-label="${t('card.saveFav')}"
+          >
+            <svg class="heart-icon" viewBox="0 0 24 24">
+              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+            </svg>
+          </button>
+        </div>
+      `}
 
       <!-- Category Pill Badge -->
       <div class="card-badge-row">
@@ -165,7 +176,7 @@ export function renderToolCard(rawTool) {
             <span class="price-currency">${amount}</span>
             <span class="price-country-badge" title="Live rate for ${userCountry}">${getCountryFlag(userCountry)}</span>
           </div>
-          <span class="price-period">${unit.toLowerCase().includes('month') ? t('card.perMonth') : `/${unit}`}</span>
+          ${periodHtml}
         </div>
 
         <a 

@@ -165,7 +165,7 @@ export async function renderHomePage(root) {
           <div class="categories-pills-wrap">
             ${categories.map((cat) => `
               <a href="#/tools?category=${encodeURIComponent(cat.name)}" class="category-pill" title="${cat.name}">
-                <span class="category-pill-icon">${cat.icon}</span>
+                ${cat.image ? `<img src="${cat.image}" alt="" style="width: 20px; height: 20px; border-radius: 4px; object-fit: cover; vertical-align: middle;" />` : `<span class="category-pill-icon">${cat.icon}</span>`}
                 <span>${cat.name}</span>
                 <span style="font-size: 0.72rem; opacity: 0.65; margin-left: 0.2rem; background: rgba(255,255,255,0.1); padding: 0.1rem 0.45rem; border-radius: 9999px;">${cat.count || 'PRO'}</span>
               </a>

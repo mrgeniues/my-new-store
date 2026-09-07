@@ -4,7 +4,7 @@ import { renderNavbar, attachNavbarEvents } from '../components/Navbar.js';
 import { renderHowToUse } from '../components/HowToUse.js';
 import { renderToolCard } from '../components/ToolCard.js';
 import { renderFooter } from '../components/Footer.js';
-import { getToolIconSvg, buildWhatsAppLink, getToolLocalizedPrice, getCountryFlag, renderFormattedPoints } from '../utils/helpers.js';
+import { getToolIconSvg, buildWhatsAppLink, getToolLocalizedPrice, getCountryFlag, renderFormattedPoints, parsePriceAndDuration } from '../utils/helpers.js';
 import { requireAuth } from '../utils/authGuard.js';
 import { t, getLocalizedTool } from '../i18n/i18n.js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
@@ -52,6 +52,9 @@ export async function renderToolDetailsPage(root, { pathParams }) {
   // Dynamic WhatsApp URL strictly from backend/API with localized price
   const dynamicWhatsAppBuyUrl = buildWhatsAppLink(tool.whatsappUrl, tool.name, localizedPrice, userCountry);
 
+  // Localized price and period parsing
+  const { amount, periodText } = parsePriceAndDuration(localizedPrice, `/${t('card.perMonth') || 'month'}`);
+
   root.innerHTML = `
     ${renderNavbar('/tools')}
 
@@ -71,9 +74,16 @@ export async function renderToolDetailsPage(root, { pathParams }) {
       <div class="details-layout">
         <!-- Left Column: Tool Specs & Descriptions -->
         <div class="details-main-content">
+          ${tool.image ? `
+            <div class="details-banner-preview" style="margin-bottom: 1.5rem; border-radius: 18px; overflow: hidden; position: relative; height: 210px; background: rgba(15,23,42,0.75); border: 1px solid rgba(255,255,255,0.12); display: flex; align-items: center; justify-content: center;">
+              <img src="${tool.image}" alt="${tool.name}" style="position: absolute; inset: -15px; width: calc(100% + 30px); height: calc(100% + 30px); object-fit: cover; filter: blur(20px); opacity: 0.45;" aria-hidden="true" />
+              <img src="${tool.image}" alt="${tool.name} banner" style="position: relative; z-index: 1; width: 100%; height: 100%; object-fit: contain;" />
+            </div>
+          ` : ''}
+
           <div class="details-header">
             <div class="details-logo-box" style="background: ${tool.iconGradient || 'linear-gradient(135deg, #4f46e5, #06b6d4)'}; color: #ffffff;">
-              ${tool.image ? `<img src="${tool.image}" alt="${tool.name} Logo" />` : getToolIconSvg(tool.id, tool.name)}
+              ${tool.image ? `<img src="${tool.image}" alt="${tool.name} Logo" style="width: 100%; height: 100%; object-fit: contain;" />` : getToolIconSvg(tool.id, tool.name)}
             </div>
 
             <div class="details-title-wrap">
@@ -125,12 +135,12 @@ export async function renderToolDetailsPage(root, { pathParams }) {
           <div class="purchase-card-sticky">
             <div class="purchase-price-block">
               <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
-                <div class="purchase-price-val">${localizedPrice ? localizedPrice.split('/')[0].trim() : '$19'}</div>
+                <div class="purchase-price-val">${amount}</div>
                 <span class="price-country-badge" style="font-size: 0.78rem; padding: 0.2rem 0.55rem;" title="Price for ${userCountry}">
                   ${getCountryFlag(userCountry)} ${userCountry}
                 </span>
               </div>
-              <div class="purchase-price-period">${t('card.perMonth')} &bull; ${t('hero.trust2Title')}</div>
+              <div class="purchase-price-period">${periodText} &bull; ${t('hero.trust2Title')}</div>
             </div>
 
             <!-- BUY NOW BUTTON (Redirects to backend WhatsApp link) -->

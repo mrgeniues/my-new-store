@@ -833,7 +833,7 @@ function renderToolsTableHtml(toolsList) {
           <tr data-tool-id="${t.id}">
             <td>
               <div style="display: flex; align-items: center; gap: 0.75rem;">
-                <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0;">
+                <div style="width: 56px; height: 40px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0;">
                   ${t.image ? `<img src="${t.image}" alt="${t.name}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.onerror=null;this.src='';this.parentNode.innerHTML='<span style=\\'font-weight:700;color:var(--accent-cyan);\\'>${t.name.slice(0, 2).toUpperCase()}</span>';" />` : `<span style="font-weight: 700; color: var(--accent-cyan); font-size: 0.85rem;">${t.name.slice(0, 2).toUpperCase()}</span>`}
                 </div>
                 <div>
@@ -1427,6 +1427,46 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
     ]
   };
 
+  // Parse initial price into currency, amount, duration
+  const initialPriceStr = (tool.price || '$19 /month').trim();
+  let initialCurrency = 'USD';
+  let initialAmount = '19';
+  let initialDuration = 'month';
+  let initialCustomDuration = '';
+
+  if (/pkr/i.test(initialPriceStr) || /rs/i.test(initialPriceStr)) {
+    initialCurrency = 'PKR';
+  } else if (/inr/i.test(initialPriceStr) || /₹/.test(initialPriceStr)) {
+    initialCurrency = 'INR';
+  } else if (/aed/i.test(initialPriceStr)) {
+    initialCurrency = 'AED';
+  } else if (/\$/.test(initialPriceStr) || /usd/i.test(initialPriceStr)) {
+    initialCurrency = 'USD';
+  }
+
+  const numMatch = initialPriceStr.match(/[\d,.]+/);
+  if (numMatch) {
+    initialAmount = numMatch[0].replace(/,/g, '');
+  }
+
+  if (initialPriceStr.includes('/')) {
+    const rawDur = initialPriceStr.split('/')[1].trim();
+    const durLower = rawDur.toLowerCase();
+    if (durLower === 'month' || durLower === 'mo') initialDuration = 'month';
+    else if (durLower === 'year' || durLower === 'yr') initialDuration = 'year';
+    else if (durLower.includes('3 month')) initialDuration = '3months';
+    else if (durLower.includes('6 month')) initialDuration = '6months';
+    else if (durLower.includes('12 month')) initialDuration = '12months';
+    else if (durLower.includes('18 month')) initialDuration = '18months';
+    else if (durLower.includes('lifetime') || durLower.includes('one-time')) initialDuration = 'lifetime';
+    else {
+      initialDuration = 'custom';
+      initialCustomDuration = rawDur;
+    }
+  } else if (/lifetime|one-time/i.test(initialPriceStr)) {
+    initialDuration = 'lifetime';
+  }
+
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop auth-backdrop-fade';
 
@@ -1486,8 +1526,128 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Global / Default Price *</label>
-            <input type="text" id="tool-price" class="form-input" value="${tool.price || '$19 /month'}" placeholder="e.g. $19 /month" required />
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+              <label class="form-label" style="margin-bottom: 0;">Global / Default Price *</label>
+              <span style="font-size: 0.72rem; color: var(--accent-mint); font-weight: 600;">Auto-syncs with Builder</span>
+            </div>
+            <input type="text" id="tool-price" class="form-input" value="${tool.price || '$19 /month'}" placeholder="e.g. 500 PKR / 18 Months" required />
+          </div>
+        </div>
+
+        <!-- Interactive Pricing & Duration Studio / Builder -->
+        <div class="pricing-studio-container">
+          <div class="pricing-studio-header">
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.45rem;">
+                <span style="font-size: 1.1rem;">💎</span>
+                <span style="font-weight: 800; color: var(--text-pure); font-size: 0.95rem;">Payment Duration & Currency Studio</span>
+              </div>
+              <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.15rem;">
+                Set monthly, yearly, 18-month, or custom plans with instant PKR, $, and currency presets:
+              </p>
+            </div>
+            <div class="pricing-live-pill" id="pricing-live-preview-pill" title="Live Preview of Formatted Rate">
+              <span>✦ Live Price:</span>
+              <span id="pricing-live-text" style="color: #ffffff;">${tool.price || '$19 /month'}</span>
+            </div>
+          </div>
+
+          <!-- 1. Billing Duration Options -->
+          <div style="margin-bottom: 0.85rem;">
+            <label class="form-label" style="font-size: 0.8rem; margin-bottom: 0.4rem; color: var(--accent-cyan); display: flex; align-items: center; gap: 0.35rem;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Billing Duration / Plan Period:
+            </label>
+            <div class="pricing-duration-grid" id="pricing-duration-buttons">
+              <button type="button" class="duration-pill-btn ${initialDuration === 'month' ? 'active' : ''}" data-duration="month">Monthly (/month)</button>
+              <button type="button" class="duration-pill-btn ${initialDuration === 'year' ? 'active' : ''}" data-duration="year">Yearly (/year)</button>
+              <button type="button" class="duration-pill-btn ${initialDuration === '3months' ? 'active' : ''}" data-duration="3months">3 Months Plan</button>
+              <button type="button" class="duration-pill-btn ${initialDuration === '6months' ? 'active' : ''}" data-duration="6months">6 Months Plan</button>
+              <button type="button" class="duration-pill-btn ${initialDuration === '12months' ? 'active' : ''}" data-duration="12months">12 Months Plan</button>
+              <button type="button" class="duration-pill-btn ${initialDuration === '18months' ? 'active' : ''}" data-duration="18months">18 Months Plan</button>
+              <button type="button" class="duration-pill-btn ${initialDuration === 'lifetime' ? 'active' : ''}" data-duration="lifetime">Lifetime (One-Time)</button>
+              <button type="button" class="duration-pill-btn ${initialDuration === 'custom' ? 'active' : ''}" data-duration="custom">✏️ Custom Duration</button>
+            </div>
+            
+            <!-- Custom Duration Input Row (shown when Custom is selected) -->
+            <div id="custom-duration-row" style="display: ${initialDuration === 'custom' ? 'flex' : 'none'}; align-items: center; gap: 0.75rem; margin-top: 0.4rem;">
+              <span style="font-size: 0.78rem; color: var(--text-secondary); white-space: nowrap;">Custom Plan Name / Period:</span>
+              <input type="text" id="custom-duration-input" class="form-input" style="padding: 0.4rem 0.75rem; font-size: 0.85rem;" value="${initialCustomDuration || '18 Months'}" placeholder="e.g. 18 Months, 2 Years, or 90 Days" />
+            </div>
+          </div>
+
+          <!-- 2. Currency Selector & Quick Presets -->
+          <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 1rem; align-items: start;">
+            <div>
+              <label class="form-label" style="font-size: 0.8rem; margin-bottom: 0.4rem; color: var(--accent-cyan);">
+                Primary Currency:
+              </label>
+              <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;" id="pricing-currency-buttons">
+                <button type="button" class="currency-select-btn ${initialCurrency === 'PKR' ? 'active' : ''}" data-curr="PKR">🇵🇰 PKR (Rs)</button>
+                <button type="button" class="currency-select-btn ${initialCurrency === 'USD' ? 'active' : ''}" data-curr="USD">🇺🇸 USD ($)</button>
+                <button type="button" class="currency-select-btn ${initialCurrency === 'INR' ? 'active' : ''}" data-curr="INR">🇮🇳 INR (₹)</button>
+                <button type="button" class="currency-select-btn ${initialCurrency === 'AED' ? 'active' : ''}" data-curr="AED">🇦🇪 AED</button>
+              </div>
+              <div style="margin-top: 0.6rem;">
+                <label class="form-label" style="font-size: 0.76rem; margin-bottom: 0.25rem;">Numeric Price / Amount:</label>
+                <input type="number" id="pricing-numeric-amount" class="form-input" value="${initialAmount || 500}" min="0" step="any" placeholder="e.g. 500 or 19" style="font-weight: 700; font-family: var(--font-mono);" />
+              </div>
+            </div>
+
+            <div>
+              <label class="form-label" style="font-size: 0.8rem; margin-bottom: 0.4rem; color: var(--accent-cyan);">
+                Quick Fill Amount Presets:
+              </label>
+              
+              <!-- PKR Fillers -->
+              <div id="presets-pkr-row" style="display: ${initialCurrency === 'PKR' ? 'block' : 'none'};">
+                <span style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Popular PKR rates:</span>
+                <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                  <button type="button" class="quick-amount-chip" data-amount="250">Rs 250</button>
+                  <button type="button" class="quick-amount-chip" data-amount="500">500 PKR</button>
+                  <button type="button" class="quick-amount-chip" data-amount="1000">Rs 1,000</button>
+                  <button type="button" class="quick-amount-chip" data-amount="1500">1,500 PKR</button>
+                  <button type="button" class="quick-amount-chip" data-amount="2500">2,500 PKR</button>
+                  <button type="button" class="quick-amount-chip" data-amount="5000">5,000 PKR</button>
+                </div>
+              </div>
+
+              <!-- USD Fillers -->
+              <div id="presets-usd-row" style="display: ${initialCurrency === 'USD' ? 'block' : 'none'};">
+                <span style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Popular USD ($) rates:</span>
+                <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                  <button type="button" class="quick-amount-chip" data-amount="5">$5</button>
+                  <button type="button" class="quick-amount-chip" data-amount="9">$9</button>
+                  <button type="button" class="quick-amount-chip" data-amount="15">$15</button>
+                  <button type="button" class="quick-amount-chip" data-amount="19">$19</button>
+                  <button type="button" class="quick-amount-chip" data-amount="29">$29</button>
+                  <button type="button" class="quick-amount-chip" data-amount="49">$49</button>
+                  <button type="button" class="quick-amount-chip" data-amount="99">$99</button>
+                </div>
+              </div>
+
+              <!-- INR Fillers -->
+              <div id="presets-inr-row" style="display: ${initialCurrency === 'INR' ? 'block' : 'none'};">
+                <span style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Popular INR (₹) rates:</span>
+                <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                  <button type="button" class="quick-amount-chip" data-amount="299">₹299</button>
+                  <button type="button" class="quick-amount-chip" data-amount="499">₹499</button>
+                  <button type="button" class="quick-amount-chip" data-amount="999">₹999</button>
+                  <button type="button" class="quick-amount-chip" data-amount="1499">₹1,499</button>
+                </div>
+              </div>
+
+              <!-- AED Fillers -->
+              <div id="presets-aed-row" style="display: ${initialCurrency === 'AED' ? 'block' : 'none'};">
+                <span style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Popular AED rates:</span>
+                <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                  <button type="button" class="quick-amount-chip" data-amount="29">AED 29</button>
+                  <button type="button" class="quick-amount-chip" data-amount="49">AED 49</button>
+                  <button type="button" class="quick-amount-chip" data-amount="89">AED 89</button>
+                  <button type="button" class="quick-amount-chip" data-amount="149">AED 149</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1502,31 +1662,54 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
             </div>
             <span style="font-size: 0.72rem; color: var(--accent-mint); font-weight: 700;">✓ Live Verification Synced</span>
           </div>
-          <p style="font-size: 0.76rem; color: var(--text-secondary); line-height: 1.45; margin-bottom: 0.85rem;">
-            Define exact prices for specific countries (e.g. Pakistan & India). When registered visitors view the store, they see prices customized for their country:
+          <p style="font-size: 0.76rem; color: var(--text-secondary); line-height: 1.45; margin-bottom: 0.75rem;">
+            Define exact localized prices for Pakistan, India, UAE, and Global visitors:
           </p>
+
+          <!-- Master Geo Auto-Fill Bar -->
+          <div class="geo-auto-fill-bar">
+            <span style="font-size: 0.76rem; font-weight: 700; color: var(--accent-cyan); white-space: nowrap;">⚡ Quick Fillers:</span>
+            <button type="button" id="geo-fill-all-smart" class="admin-chip-btn" style="color: var(--accent-mint); border-color: rgba(16, 185, 129, 0.35);" title="Auto-fill all countries with their native currencies using the current plan duration">
+              ⚡ Smart Fill All (PKR + $ + ₹ + AED)
+            </button>
+            <button type="button" id="geo-fill-pkr-all" class="admin-chip-btn" title="Set PKR rate across all countries">
+              🇵🇰 Set All to PKR
+            </button>
+            <button type="button" id="geo-fill-usd-all" class="admin-chip-btn" title="Set USD ($) rate across all countries">
+              🇺🇸 Set All to USD ($)
+            </button>
+            <button type="button" id="geo-sync-duration-all" class="admin-chip-btn" style="color: #a855f7; border-color: rgba(168, 85, 247, 0.35);" title="Keep current amounts but sync duration suffix across all country inputs">
+              ⏱️ Sync Duration to All
+            </button>
+          </div>
 
           <div class="geo-pricing-grid">
             <!-- Pakistan -->
             <div class="geo-country-card">
               <div class="geo-country-label">
                 <span>🇵🇰</span>
-                <span>Pakistan Price</span>
+                <span>Pakistan Price (PKR)</span>
               </div>
               <input 
                 type="text" 
                 id="geo-price-pakistan" 
                 class="form-input geo-price-input" 
                 value="${tool.countryPricing?.Pakistan || tool.countryPricing?.pakistan || ''}" 
-                placeholder="e.g. Rs 1,500 /month" 
+                placeholder="e.g. 500 PKR / 18 Months" 
               />
+              <div style="display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 0.2rem;">
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-pakistan" data-prefix="PKR" data-val="500">500 PKR</button>
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-pakistan" data-prefix="PKR" data-val="1000">1,000 PKR</button>
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-pakistan" data-prefix="PKR" data-val="1500">1,500 PKR</button>
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-pakistan" data-prefix="PKR" data-val="2500">2,500 PKR</button>
+              </div>
             </div>
 
             <!-- India -->
             <div class="geo-country-card">
               <div class="geo-country-label">
                 <span>🇮🇳</span>
-                <span>India Price</span>
+                <span>India Price (INR)</span>
               </div>
               <input 
                 type="text" 
@@ -1535,6 +1718,11 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
                 value="${tool.countryPricing?.India || tool.countryPricing?.india || ''}" 
                 placeholder="e.g. ₹499 /month" 
               />
+              <div style="display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 0.2rem;">
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-india" data-prefix="INR" data-val="299">₹299</button>
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-india" data-prefix="INR" data-val="499">₹499</button>
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-india" data-prefix="INR" data-val="999">₹999</button>
+              </div>
             </div>
 
             <!-- UAE -->
@@ -1550,13 +1738,18 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
                 value="${tool.countryPricing?.['United Arab Emirates'] || tool.countryPricing?.UAE || ''}" 
                 placeholder="e.g. AED 49 /month" 
               />
+              <div style="display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 0.2rem;">
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-uae" data-prefix="AED" data-val="29">AED 29</button>
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-uae" data-prefix="AED" data-val="49">AED 49</button>
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-uae" data-prefix="AED" data-val="89">AED 89</button>
+              </div>
             </div>
 
             <!-- Global / Others -->
             <div class="geo-country-card" style="border-color: rgba(56, 189, 248, 0.35);">
               <div class="geo-country-label" style="color: var(--accent-cyan);">
                 <span>🌐</span>
-                <span>Other Countries</span>
+                <span>Other Countries (USD)</span>
               </div>
               <input 
                 type="text" 
@@ -1565,15 +1758,24 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
                 value="${tool.countryPricing?.DEFAULT || tool.countryPricing?.default || tool.price || '$19 /month'}" 
                 placeholder="e.g. $19 /month" 
               />
+              <div style="display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 0.2rem;">
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-default" data-prefix="USD" data-val="9">$9</button>
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-default" data-prefix="USD" data-val="19">$19</button>
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-default" data-prefix="USD" data-val="29">$29</button>
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-default" data-prefix="USD" data-val="49">$49</button>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Image: URL or File Upload with Live Preview -->
+        <!-- Tool Image / Media Banner with Live High-Fidelity Preview -->
         <div class="form-group">
-          <label class="form-label">Tool Logo / Image</label>
-          <div style="display: flex; gap: 0.75rem; margin-bottom: 0.5rem;">
-            <input type="text" id="tool-image-url" class="form-input" value="${tool.image || ''}" placeholder="https://example.com/logo.png" style="flex: 1;" />
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+            <label class="form-label" style="margin-bottom: 0;">Tool Image / Media Banner *</label>
+            <span style="font-size: 0.72rem; color: var(--accent-cyan);">✦ Renders prominent high-res banner on storefront</span>
+          </div>
+          <div style="display: flex; gap: 0.75rem; margin-bottom: 0.6rem;">
+            <input type="text" id="tool-image-url" class="form-input" value="${tool.image || ''}" placeholder="https://example.com/banner-or-logo.png" style="flex: 1;" />
             <label class="btn btn-secondary" style="cursor: pointer; padding: 0.65rem 1.1rem; font-size: 0.85rem; white-space: nowrap;">
               Upload File
               <input type="file" id="tool-image-file" accept="image/*" style="display: none;" />
@@ -1581,13 +1783,27 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
           </div>
           <span id="upload-status-text" style="font-size: 0.75rem; color: var(--accent-cyan); display: none; margin-bottom: 0.5rem;"></span>
 
-          <!-- Live Tool Image Preview Box -->
-          <div id="tool-image-preview-wrap" style="${tool.image ? 'display: flex;' : 'display: none;'} align-items: center; gap: 1rem; padding: 0.75rem; background: rgba(0,0,0,0.25); border: 1px dashed var(--border-glass); border-radius: var(--radius-md);">
-            <img id="tool-image-preview" src="${tool.image || ''}" alt="Preview" style="width: 48px; height: 48px; object-fit: contain; border-radius: 8px; background: rgba(255,255,255,0.05); padding: 4px;" />
-            <div style="flex: 1; font-size: 0.8rem; color: var(--text-muted);">
-              Live Logo / Image Preview
+          <!-- Live Card Media Banner Preview Container -->
+          <div id="tool-image-preview-wrap" style="padding: 0.85rem; background: rgba(0,0,0,0.35); border: 1px dashed var(--border-glass); border-radius: var(--radius-md);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <span style="font-size: 0.78rem; font-weight: 700; color: var(--text-pure);">Live Card Banner Preview:</span>
+              <button type="button" id="tool-image-clear" class="btn-details" style="color: #f87171; font-size: 0.75rem; display: ${tool.image ? 'inline-block' : 'none'};">Clear Image</button>
             </div>
-            <button type="button" id="tool-image-clear" class="btn-details" style="color: #f87171; font-size: 0.75rem;">Clear Image</button>
+            
+            <div class="tool-modal-banner-preview" id="modal-banner-box">
+              ${tool.image ? `
+                <div class="tool-modal-banner-ambient" id="modal-banner-ambient" style="background-image: url('${tool.image}');"></div>
+                <img class="tool-modal-banner-img" id="tool-image-preview" src="${tool.image}" alt="Banner Preview" />
+                <div style="position: absolute; top: 10px; left: 10px; z-index: 3;" class="badge badge-popular" id="modal-preview-cat-badge">${tool.category || 'AI Tool'}</div>
+                <div style="position: absolute; bottom: 10px; right: 10px; z-index: 3; background: rgba(0,0,0,0.75); border: 1px solid var(--accent-cyan); color: #38bdf8; font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: 6px;" id="modal-preview-price-badge">${tool.price || '$19 /month'}</div>
+              ` : `
+                <div style="text-align: center; color: var(--text-muted); padding: 1.5rem;" id="modal-banner-empty">
+                  <div style="font-size: 2rem; margin-bottom: 0.35rem;">🖼️</div>
+                  <div style="font-size: 0.82rem; font-weight: 600; color: var(--text-secondary);">No Image Selected Yet</div>
+                  <div style="font-size: 0.72rem; margin-top: 0.2rem;">Upload a file or paste an image URL above to preview how your banner displays</div>
+                </div>
+              `}
+            </div>
           </div>
         </div>
 
@@ -1700,21 +1916,279 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
     };
   }
 
-  // Image Upload and Live Preview
+  // --- Pricing Studio & Duration Interactive Logic ---
+  let currentDuration = initialDuration;
+  let currentCurrency = initialCurrency;
+
+  const getDurationSuffix = (dur) => {
+    if (dur === 'month') return '/month';
+    if (dur === 'year') return '/year';
+    if (dur === '3months') return '/3 Months';
+    if (dur === '6months') return '/6 Months';
+    if (dur === '12months') return '/12 Months';
+    if (dur === '18months') return '/18 Months';
+    if (dur === 'lifetime') return '(Lifetime)';
+    if (dur === 'custom') {
+      const customVal = document.getElementById('custom-duration-input')?.value.trim() || '18 Months';
+      return /lifetime|one-time/i.test(customVal) ? `(${customVal})` : `/${customVal}`;
+    }
+    return '/month';
+  };
+
+  const calculateFormattedPrice = () => {
+    const amt = document.getElementById('pricing-numeric-amount')?.value.trim() || '500';
+    const durSuffix = getDurationSuffix(currentDuration);
+    let formatted = '';
+    if (currentCurrency === 'PKR') {
+      formatted = `${amt} PKR ${durSuffix}`;
+    } else if (currentCurrency === 'USD') {
+      formatted = `$${amt} ${durSuffix}`;
+    } else if (currentCurrency === 'INR') {
+      formatted = `₹${amt} ${durSuffix}`;
+    } else if (currentCurrency === 'AED') {
+      formatted = `AED ${amt} ${durSuffix}`;
+    } else {
+      formatted = `${amt} ${durSuffix}`;
+    }
+    return formatted.replace(/\s+/g, ' ').trim();
+  };
+
+  const syncPriceToInputs = (formatted) => {
+    const priceInput = document.getElementById('tool-price');
+    const liveText = document.getElementById('pricing-live-text');
+    const previewPriceBadge = document.getElementById('modal-preview-price-badge');
+    if (priceInput) priceInput.value = formatted;
+    if (liveText) liveText.textContent = formatted;
+    if (previewPriceBadge) previewPriceBadge.textContent = formatted;
+  };
+
+  // Duration buttons
+  const durationBtns = backdrop.querySelectorAll('#pricing-duration-buttons .duration-pill-btn');
+  const customDurationRow = document.getElementById('custom-duration-row');
+  const customDurationInput = document.getElementById('custom-duration-input');
+
+  durationBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      durationBtns.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentDuration = btn.getAttribute('data-duration');
+
+      if (currentDuration === 'custom') {
+        if (customDurationRow) customDurationRow.style.display = 'flex';
+        if (customDurationInput) customDurationInput.focus();
+      } else {
+        if (customDurationRow) customDurationRow.style.display = 'none';
+      }
+
+      const formatted = calculateFormattedPrice();
+      syncPriceToInputs(formatted);
+    });
+  });
+
+  if (customDurationInput) {
+    customDurationInput.addEventListener('input', () => {
+      if (currentDuration === 'custom') {
+        const formatted = calculateFormattedPrice();
+        syncPriceToInputs(formatted);
+      }
+    });
+  }
+
+  // Currency buttons & preset rows
+  const currencyBtns = backdrop.querySelectorAll('#pricing-currency-buttons .currency-select-btn');
+  const presetPkr = document.getElementById('presets-pkr-row');
+  const presetUsd = document.getElementById('presets-usd-row');
+  const presetInr = document.getElementById('presets-inr-row');
+  const presetAed = document.getElementById('presets-aed-row');
+  const amountInput = document.getElementById('pricing-numeric-amount');
+
+  currencyBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      currencyBtns.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentCurrency = btn.getAttribute('data-curr');
+
+      if (presetPkr) presetPkr.style.display = currentCurrency === 'PKR' ? 'block' : 'none';
+      if (presetUsd) presetUsd.style.display = currentCurrency === 'USD' ? 'block' : 'none';
+      if (presetInr) presetInr.style.display = currentCurrency === 'INR' ? 'block' : 'none';
+      if (presetAed) presetAed.style.display = currentCurrency === 'AED' ? 'block' : 'none';
+
+      // Set sensible initial number if default was mismatched
+      if (currentCurrency === 'PKR' && amountInput && (amountInput.value === '19' || !amountInput.value)) {
+        amountInput.value = '500';
+      } else if (currentCurrency === 'USD' && amountInput && amountInput.value === '500') {
+        amountInput.value = '19';
+      }
+
+      const formatted = calculateFormattedPrice();
+      syncPriceToInputs(formatted);
+    });
+  });
+
+  // Amount preset chips
+  backdrop.querySelectorAll('.pricing-studio-container .quick-amount-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const amt = chip.getAttribute('data-amount');
+      if (amt && amountInput) {
+        amountInput.value = amt;
+        const formatted = calculateFormattedPrice();
+        syncPriceToInputs(formatted);
+      }
+    });
+  });
+
+  if (amountInput) {
+    amountInput.addEventListener('input', () => {
+      const formatted = calculateFormattedPrice();
+      syncPriceToInputs(formatted);
+    });
+  }
+
+  // Manual input in main tool-price input
+  const mainPriceInput = document.getElementById('tool-price');
+  if (mainPriceInput) {
+    mainPriceInput.addEventListener('input', () => {
+      const val = mainPriceInput.value.trim();
+      const liveText = document.getElementById('pricing-live-text');
+      const previewPriceBadge = document.getElementById('modal-preview-price-badge');
+      if (liveText) liveText.textContent = val || '$19 /month';
+      if (previewPriceBadge) previewPriceBadge.textContent = val || '$19 /month';
+    });
+  }
+
+  // Category select syncs to banner preview badge
+  const catSelect = document.getElementById('tool-category');
+  if (catSelect) {
+    catSelect.addEventListener('change', () => {
+      const badge = document.getElementById('modal-preview-cat-badge');
+      if (badge) badge.textContent = catSelect.value || 'AI Tool';
+    });
+  }
+
+  // Geo Pricing Quick Actions
+  const geoPkInput = document.getElementById('geo-price-pakistan');
+  const geoInInput = document.getElementById('geo-price-india');
+  const geoUaeInput = document.getElementById('geo-price-uae');
+  const geoDefInput = document.getElementById('geo-price-default');
+
+  // Smart Fill All
+  document.getElementById('geo-fill-all-smart')?.addEventListener('click', () => {
+    const durSuffix = getDurationSuffix(currentDuration);
+    const amt = amountInput?.value.trim() || '500';
+    if (geoPkInput) geoPkInput.value = `${currentCurrency === 'PKR' ? amt : '500'} PKR ${durSuffix}`;
+    if (geoInInput) geoInInput.value = `₹${currentCurrency === 'INR' ? amt : '499'} ${durSuffix}`;
+    if (geoUaeInput) geoUaeInput.value = `AED ${currentCurrency === 'AED' ? amt : '49'} ${durSuffix}`;
+    if (geoDefInput) geoDefInput.value = `$${currentCurrency === 'USD' ? amt : '19'} ${durSuffix}`;
+    showToast(`⚡ All country rates filled with ${durSuffix}`);
+  });
+
+  // Fill All as PKR
+  document.getElementById('geo-fill-pkr-all')?.addEventListener('click', () => {
+    const durSuffix = getDurationSuffix(currentDuration);
+    const amt = amountInput?.value.trim() || '500';
+    const val = `${amt} PKR ${durSuffix}`;
+    if (geoPkInput) geoPkInput.value = val;
+    if (geoInInput) geoInInput.value = val;
+    if (geoUaeInput) geoUaeInput.value = val;
+    if (geoDefInput) geoDefInput.value = val;
+    if (mainPriceInput) {
+      mainPriceInput.value = val;
+      syncPriceToInputs(val);
+    }
+    showToast(`🇵🇰 Set all country rates to ${val}`);
+  });
+
+  // Fill All as USD
+  document.getElementById('geo-fill-usd-all')?.addEventListener('click', () => {
+    const durSuffix = getDurationSuffix(currentDuration);
+    const amt = currentCurrency === 'USD' ? (amountInput?.value.trim() || '19') : '19';
+    const val = `$${amt} ${durSuffix}`;
+    if (geoPkInput) geoPkInput.value = val;
+    if (geoInInput) geoInInput.value = val;
+    if (geoUaeInput) geoUaeInput.value = val;
+    if (geoDefInput) geoDefInput.value = val;
+    if (mainPriceInput) {
+      mainPriceInput.value = val;
+      syncPriceToInputs(val);
+    }
+    showToast(`🇺🇸 Set all country rates to ${val}`);
+  });
+
+  // Sync duration across all country rates
+  document.getElementById('geo-sync-duration-all')?.addEventListener('click', () => {
+    const durSuffix = getDurationSuffix(currentDuration);
+    const replaceDur = (input) => {
+      if (!input || !input.value.trim()) return;
+      let val = input.value.trim();
+      if (val.includes('/')) {
+        val = val.split('/')[0].trim() + ' ' + durSuffix;
+      } else if (/\(.*\)/.test(val)) {
+        val = val.replace(/\(.*\)/, '').trim() + ' ' + durSuffix;
+      } else {
+        val = val + ' ' + durSuffix;
+      }
+      input.value = val.replace(/\s+/g, ' ').trim();
+    };
+
+    replaceDur(geoPkInput);
+    replaceDur(geoInInput);
+    replaceDur(geoUaeInput);
+    replaceDur(geoDefInput);
+    replaceDur(mainPriceInput);
+    if (mainPriceInput) syncPriceToInputs(mainPriceInput.value);
+    showToast(`⏱️ Synced duration "${durSuffix}" to all countries!`);
+  });
+
+  // Individual country quick chips
+  backdrop.querySelectorAll('.country-quick-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const targetId = chip.getAttribute('data-target');
+      const prefix = chip.getAttribute('data-prefix');
+      const val = chip.getAttribute('data-val');
+      const targetInput = document.getElementById(targetId);
+      const durSuffix = getDurationSuffix(currentDuration);
+
+      if (targetInput) {
+        if (prefix === 'PKR') {
+          targetInput.value = `${val} PKR ${durSuffix}`;
+        } else if (prefix === 'INR') {
+          targetInput.value = `₹${val} ${durSuffix}`;
+        } else if (prefix === 'AED') {
+          targetInput.value = `AED ${val} ${durSuffix}`;
+        } else if (prefix === 'USD') {
+          targetInput.value = `$${val} ${durSuffix}`;
+        }
+      }
+    });
+  });
+
+  // Image Upload and Live High-Fidelity Banner Preview
   const fileInput = document.getElementById('tool-image-file');
   const imageUrlInput = document.getElementById('tool-image-url');
   const statusText = document.getElementById('upload-status-text');
-  const previewWrap = document.getElementById('tool-image-preview-wrap');
-  const previewImg = document.getElementById('tool-image-preview');
+  const bannerBox = document.getElementById('modal-banner-box');
   const clearBtn = document.getElementById('tool-image-clear');
 
   const updateToolPreview = (url) => {
     if (url) {
-      previewImg.src = url;
-      previewWrap.style.display = 'flex';
+      const cat = document.getElementById('tool-category')?.value || 'AI Tool';
+      const curPrice = document.getElementById('tool-price')?.value || '$19 /month';
+      bannerBox.innerHTML = `
+        <div class="tool-modal-banner-ambient" id="modal-banner-ambient" style="background-image: url('${url}');"></div>
+        <img class="tool-modal-banner-img" id="tool-image-preview" src="${url}" alt="Banner Preview" />
+        <div style="position: absolute; top: 10px; left: 10px; z-index: 3;" class="badge badge-popular" id="modal-preview-cat-badge">${cat}</div>
+        <div style="position: absolute; bottom: 10px; right: 10px; z-index: 3; background: rgba(0,0,0,0.75); border: 1px solid var(--accent-cyan); color: #38bdf8; font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: 6px;" id="modal-preview-price-badge">${curPrice}</div>
+      `;
+      if (clearBtn) clearBtn.style.display = 'inline-block';
     } else {
-      previewWrap.style.display = 'none';
-      previewImg.src = '';
+      bannerBox.innerHTML = `
+        <div style="text-align: center; color: var(--text-muted); padding: 1.5rem;" id="modal-banner-empty">
+          <div style="font-size: 2rem; margin-bottom: 0.35rem;">🖼️</div>
+          <div style="font-size: 0.82rem; font-weight: 600; color: var(--text-secondary);">No Image Selected Yet</div>
+          <div style="font-size: 0.72rem; margin-top: 0.2rem;">Upload a file or paste an image URL above to preview how your banner displays</div>
+        </div>
+      `;
+      if (clearBtn) clearBtn.style.display = 'none';
     }
   };
 
@@ -1762,25 +2236,38 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
       .filter(Boolean);
 
     // Country-specific pricing dictionary
+    const toolBasePrice = document.getElementById('tool-price')?.value.trim() || '$19 /month';
     const pkPrice = document.getElementById('geo-price-pakistan')?.value.trim() || '';
     const inPrice = document.getElementById('geo-price-india')?.value.trim() || '';
     const uaePrice = document.getElementById('geo-price-uae')?.value.trim() || '';
-    const defPrice = document.getElementById('geo-price-default')?.value.trim() || document.getElementById('tool-price').value.trim() || '$19 /month';
+    const defPrice = document.getElementById('geo-price-default')?.value.trim() || toolBasePrice;
 
     const countryPricing = {
       ...(tool.countryPricing || {}),
       DEFAULT: defPrice
     };
-    if (pkPrice) countryPricing.Pakistan = pkPrice;
-    if (inPrice) countryPricing.India = inPrice;
-    if (uaePrice) countryPricing['United Arab Emirates'] = uaePrice;
+    if (pkPrice) {
+      countryPricing.Pakistan = pkPrice;
+      countryPricing.pakistan = pkPrice;
+      countryPricing.PK = pkPrice;
+    }
+    if (inPrice) {
+      countryPricing.India = inPrice;
+      countryPricing.india = inPrice;
+      countryPricing.IN = inPrice;
+    }
+    if (uaePrice) {
+      countryPricing['United Arab Emirates'] = uaePrice;
+      countryPricing.UAE = uaePrice;
+      countryPricing.AE = uaePrice;
+    }
 
     const payload = {
       id: tool.id,
       name: nameInput.value.trim(),
       slug: slugInput.value.trim(),
       category: document.getElementById('tool-category').value,
-      price: defPrice,
+      price: toolBasePrice,
       countryPricing: countryPricing,
       image: imageUrlInput.value.trim(),
       shortDescription: document.getElementById('tool-short-desc').value.trim(),

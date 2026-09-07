@@ -79,6 +79,77 @@ export function getToolLocalizedPrice(tool, targetCountry = '') {
   return tool.price || '$19 /month';
 }
 
+// Parse price amount, currency symbol/code, and billing duration
+export function parsePriceAndDuration(rawPrice, fallbackPeriod = '/month') {
+  if (!rawPrice) {
+    return {
+      amount: '$19',
+      unit: 'month',
+      periodText: fallbackPeriod,
+      periodHtml: `<span class="price-period">${fallbackPeriod}</span>`
+    };
+  }
+
+  let str = String(rawPrice).trim();
+  let amount = str;
+  let unit = '';
+
+  // Check for common separators: "/", " per ", " for " or parenthesized like "(Lifetime)" or "(18 Months)"
+  if (str.includes('/')) {
+    const parts = str.split('/');
+    amount = parts[0].trim();
+    unit = parts.slice(1).join('/').trim();
+  } else if (/\s+(?:per|for)\s+/i.test(str)) {
+    const parts = str.split(/\s+(?:per|for)\s+/i);
+    amount = parts[0].trim();
+    unit = parts.slice(1).join(' ').trim();
+  } else if (/\(([^)]+)\)$/.test(str)) {
+    const match = str.match(/\(([^)]+)\)$/);
+    amount = str.replace(/\(([^)]+)\)$/, '').trim();
+    unit = match[1].trim();
+  }
+
+  // Strip leading slashes or parens from unit
+  unit = unit.replace(/^[\/\s]+/, '').replace(/[\)\(]/g, '').trim();
+
+  // Normalize currency amount:
+  // e.g. "500pkr" -> "500 PKR", "pkr500" -> "500 PKR", "rs500" -> "Rs 500"
+  if (/^\d+\s*pkr$/i.test(amount)) {
+    amount = amount.replace(/pkr$/i, '').trim() + ' PKR';
+  } else if (/^pkr\s*\d+$/i.test(amount)) {
+    amount = amount.replace(/^pkr\s*/i, '').trim() + ' PKR';
+  } else if (/^rs\.?\s*\d+$/i.test(amount)) {
+    amount = amount.replace(/^rs\.?\s*/i, 'Rs ').trim();
+  }
+
+  // Determine period text and periodHtml
+  let periodHtml = '';
+  let periodText = '';
+
+  if (unit) {
+    const cleanUnit = unit.toLowerCase().trim();
+    if (cleanUnit === 'month' || cleanUnit === 'mo' || cleanUnit === 'monthly' || cleanUnit === 'per month') {
+      periodText = '/month';
+      periodHtml = `<span class="price-period">/month</span>`;
+    } else if (cleanUnit === 'year' || cleanUnit === 'yr' || cleanUnit === 'yearly' || cleanUnit === 'annually' || cleanUnit === 'per year') {
+      periodText = '/year';
+      periodHtml = `<span class="price-period">/year</span>`;
+    } else if (cleanUnit.includes('lifetime') || cleanUnit.includes('one-time') || cleanUnit.includes('onetime')) {
+      periodText = 'Lifetime Plan';
+      periodHtml = `<span class="price-period price-period-badge">Lifetime</span>`;
+    } else {
+      // Custom duration, e.g. "18 Months", "3 Months", "6 Months Plan", "2 Years"
+      periodText = `/${unit}`;
+      periodHtml = `<span class="price-period price-period-custom">/${unit}</span>`;
+    }
+  } else {
+    periodText = '';
+    periodHtml = '';
+  }
+
+  return { amount, unit, periodText, periodHtml };
+}
+
 // Render formatted multiline text or bullet points into clean HTML list
 export function renderFormattedPoints(rawText, options = {}) {
   if (!rawText) return '';
