@@ -3,6 +3,7 @@ import { renderNavbar, attachNavbarEvents } from '../components/Navbar.js';
 import { renderFooter } from '../components/Footer.js';
 import { showToast } from '../utils/helpers.js';
 import { supabase, isSupabaseConfigured, defaultWhatsappUrl } from '../lib/supabase.js';
+import { getAppSettings } from '../lib/settings.js';
 
 export async function renderContactPage(root) {
   document.title = 'Contact & Support | AI Tools Store';
@@ -86,6 +87,19 @@ export async function renderContactPage(root) {
                   </svg>
                 </span>
                 <input type="email" id="contact-email" class="form-input-stylish" placeholder="e.g. alex@example.com" required />
+              </div>
+            </div>
+
+            <!-- WhatsApp Number -->
+            <div class="form-group">
+              <label for="contact-whatsapp">WhatsApp Number *</label>
+              <div class="form-input-wrapper">
+                <span class="form-input-icon" style="color: #25D366;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2z"/>
+                  </svg>
+                </span>
+                <input type="tel" id="contact-whatsapp" class="form-input-stylish" placeholder="e.g. +92 300 1234567" required />
               </div>
             </div>
 
@@ -280,6 +294,7 @@ export async function renderContactPage(root) {
 
       const name = document.getElementById('contact-name')?.value?.trim() || '';
       const email = document.getElementById('contact-email')?.value?.trim() || '';
+      const whatsapp = document.getElementById('contact-whatsapp')?.value?.trim() || '';
       const subject = document.getElementById('contact-subject')?.value?.trim() || 'General Inquiry';
       const message = document.getElementById('contact-message')?.value?.trim() || '';
 
@@ -289,13 +304,18 @@ export async function renderContactPage(root) {
       }
 
       try {
+        // 1. Save to Supabase contact_messages
         if (isSupabaseConfigured) {
+          const formattedMessage = whatsapp 
+            ? `📱 WhatsApp: ${whatsapp}\n\n${message}` 
+            : message;
+
           const { error } = await supabase.from('contact_messages').insert([
             {
               full_name: name,
               email: email,
               subject: subject,
-              message: message,
+              message: formattedMessage,
               created_at: new Date().toISOString()
             }
           ]);
@@ -305,9 +325,39 @@ export async function renderContactPage(root) {
           }
         }
 
+        // 2. Dispatch query directly to n8n / MCP Webhook if configured by admin
+        const settings = getAppSettings();
+        if (settings.mcpWebhookUrl && settings.mcpWebhookUrl.trim().startsWith('http')) {
+          try {
+            const headers = { 'Content-Type': 'application/json' };
+            if (settings.mcpSecretKey) {
+              headers['Authorization'] = `Bearer ${settings.mcpSecretKey.trim()}`;
+              headers['X-MCP-Secret'] = settings.mcpSecretKey.trim();
+            }
+
+            fetch(settings.mcpWebhookUrl.trim(), {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                event: 'contact_form_submission',
+                source: 'AI Tools Store Contact Page',
+                full_name: name,
+                email: email,
+                whatsapp_number: whatsapp,
+                topic: subject,
+                message: message,
+                submitted_at: new Date().toISOString()
+              })
+            }).catch((whErr) => {
+              console.warn('[ContactPage] n8n / MCP webhook dispatch warning:', whErr);
+            });
+          } catch (mcpErr) {
+            console.warn('[ContactPage] MCP Webhook call notice:', mcpErr);
+          }
+        }
+
         showToast(`Thank you, ${name}! Your message has been received. Our team will contact you shortly.`, 'success');
         form.reset();
-        // Reset topic chip to first one
         topicChips.forEach((c, idx) => c.classList.toggle('active', idx === 0));
         if (subjectInput) subjectInput.value = 'License Activation';
       } catch (err) {

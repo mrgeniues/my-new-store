@@ -5,6 +5,7 @@ import { toolsApi } from '../api/toolsApi.js';
 import { renderNavbar, attachNavbarEvents } from '../components/Navbar.js';
 import { renderFooter } from '../components/Footer.js';
 import { showToast, getCountryFlag, getToolLocalizedPrice } from '../utils/helpers.js';
+import { getAppSettings, saveAppSettings, testMcpWebhook } from '../lib/settings.js';
 
 let activeTab = 'tools'; // 'tools' | 'users' | 'analytics' | 'settings'
 let adminPricingCountry = 'Pakistan';
@@ -178,6 +179,7 @@ export async function renderAdminDashboardPage(root) {
   const featuredCount = tools.filter((t) => t.featured).length;
   const categoriesList = categories.map((c) => c.name);
   const adminUsersCount = users.filter((u) => u.role === 'admin').length;
+  const appSettings = getAppSettings();
 
   root.innerHTML = `
     ${renderNavbar('/admin')}
@@ -654,42 +656,123 @@ export async function renderAdminDashboardPage(root) {
         </div>
       </div>
 
-      <!-- TAB 4: STORE & WHATSAPP SETTINGS -->
+      <!-- TAB 4: STORE, MCP & WHATSAPP SETTINGS -->
       <div id="tab-content-settings" style="${activeTab === 'settings' ? 'display: block;' : 'display: none;'}">
-        <div class="admin-table-card" style="max-width: 800px; margin-bottom: 2rem;">
-          <h3 style="font-size: 1.25rem; color: var(--text-pure); font-weight: 700; margin-bottom: 0.5rem;">
-            Global Concierge & Community Settings
-          </h3>
-          <p style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 1.75rem;">
-            Configure your community group invitations and fallback WhatsApp concierge link for visitors.
-          </p>
-
-          <div class="form-group" style="margin-bottom: 1.5rem;">
-            <label class="form-label">WhatsApp Community Invite URL</label>
-            <div style="display: flex; gap: 0.75rem;">
-              <input 
-                type="text" 
-                id="settings-whatsapp-url" 
-                class="form-input" 
-                value="${defaultWhatsappUrl}" 
-                readonly 
-                style="flex: 1;"
-              />
-              <a 
-                href="${defaultWhatsappUrl}" 
-                target="_blank" 
-                class="btn btn-secondary" 
-                style="padding: 0.65rem 1.2rem; font-size: 0.85rem; white-space: nowrap; text-decoration: none;"
-              >
-                Test Link ↗
-              </a>
+        <!-- Card 1: n8n & MCP Automation Webhook -->
+        <div class="admin-table-card" style="max-width: 860px; margin-bottom: 2rem;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.85rem; flex-wrap: wrap; gap: 0.75rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(234, 88, 12, 0.15); border: 1px solid rgba(234, 88, 12, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+                ⚡
+              </div>
+              <div>
+                <h3 style="font-size: 1.25rem; color: var(--text-pure); font-weight: 700; margin: 0;">
+                  n8n &amp; MCP (Model Context Protocol) Automation
+                </h3>
+                <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0.2rem 0 0 0;">
+                  Forward all customer inquiries, order requests, and messages straight into your n8n workflow or AI Agent via MCP.
+                </p>
+              </div>
             </div>
+            <span class="badge badge-popular" style="background: rgba(234, 88, 12, 0.2); color: #fb923c; border-color: rgba(234, 88, 12, 0.4);">n8n / MCP Hook</span>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label class="form-label">n8n / MCP Webhook Endpoint URL</label>
+            <input 
+              type="url" 
+              id="settings-mcp-webhook-url" 
+              class="form-input" 
+              value="${appSettings.mcpWebhookUrl || ''}" 
+              placeholder="https://your-n8n-instance.com/webhook/ai-tools-contact"
+            />
             <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.35rem;">
-              Configured in your <code style="color: var(--accent-cyan);">.env</code> file or Hostinger panel as <code style="color: var(--accent-cyan);">VITE_DEFAULT_WHATSAPP_URL</code>.
+              Every query submitted on the Contact page will trigger an HTTP POST request to this endpoint with full customer payload (name, email, WhatsApp number, topic, message).
             </p>
           </div>
 
           <div class="form-group" style="margin-bottom: 1.5rem;">
+            <label class="form-label">MCP Secret Token / API Key (Optional Header)</label>
+            <input 
+              type="password" 
+              id="settings-mcp-secret" 
+              class="form-input" 
+              value="${appSettings.mcpSecretKey || ''}" 
+              placeholder="e.g. bearer_token_or_secret_key"
+            />
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.35rem;">
+              If set, sent in the <code style="color: var(--accent-cyan);">Authorization: Bearer</code> and <code style="color: var(--accent-cyan);">X-MCP-Secret</code> headers.
+            </p>
+          </div>
+
+          <div style="display: flex; gap: 1rem; align-items: center; padding-top: 1rem; border-top: 1px solid var(--border-subtle); flex-wrap: wrap;">
+            <button id="btn-test-mcp-ping" type="button" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.65rem 1.25rem;">
+              ⚡ Test n8n / MCP Ping
+            </button>
+            <span id="mcp-ping-status" style="font-size: 0.85rem; color: var(--text-muted);"></span>
+          </div>
+        </div>
+
+        <!-- Card 2: WhatsApp & Support Contact Settings -->
+        <div class="admin-table-card" style="max-width: 860px; margin-bottom: 2rem;">
+          <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.85rem;">
+            <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(37, 211, 102, 0.15); border: 1px solid rgba(37, 211, 102, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; color: #25D366;">
+              📱
+            </div>
+            <div>
+              <h3 style="font-size: 1.25rem; color: var(--text-pure); font-weight: 700; margin: 0;">
+                WhatsApp &amp; Direct Support Concierge
+              </h3>
+              <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0.2rem 0 0 0;">
+                Configure your official WhatsApp numbers and community links used for customer order fulfillments.
+              </p>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem;">
+            <div class="form-group">
+              <label class="form-label">Admin WhatsApp Contact Number</label>
+              <input 
+                type="text" 
+                id="settings-admin-whatsapp-number" 
+                class="form-input" 
+                value="${appSettings.adminWhatsappNumber || ''}" 
+                placeholder="e.g. +92 300 1234567"
+              />
+              <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.35rem;">
+                Used for automated WhatsApp direct chat and support routing.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">WhatsApp Community / Channel URL</label>
+              <input 
+                type="text" 
+                id="settings-admin-whatsapp-url" 
+                class="form-input" 
+                value="${appSettings.adminWhatsappUrl || defaultWhatsappUrl}" 
+                placeholder="https://chat.whatsapp.com/..."
+              />
+              <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.35rem;">
+                Official group/channel invite link for users.
+              </p>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 1rem; align-items: center; padding-top: 1rem; border-top: 1px solid var(--border-subtle);">
+            <button id="btn-save-all-settings" type="button" class="btn btn-primary" style="font-size: 0.9rem; padding: 0.75rem 2rem; font-weight: 700;">
+              Save All Settings
+            </button>
+            <span id="settings-save-status" style="font-size: 0.85rem; color: #34d399;"></span>
+          </div>
+        </div>
+
+        <!-- Card 3: Cloud Database Status -->
+        <div class="admin-table-card" style="max-width: 860px; margin-bottom: 2rem;">
+          <h3 style="font-size: 1.15rem; color: var(--text-pure); font-weight: 700; margin-bottom: 0.5rem;">
+            Database Connection Diagnostics
+          </h3>
+          <div class="form-group" style="margin-bottom: 1rem;">
             <label class="form-label">Supabase Cloud Project URL</label>
             <input 
               type="text" 
@@ -698,9 +781,8 @@ export async function renderAdminDashboardPage(root) {
               readonly 
             />
           </div>
-
-          <div style="display: flex; gap: 1rem; align-items: center; padding-top: 1rem; border-top: 1px solid var(--border-subtle);">
-            <button id="btn-test-db-ping" class="btn btn-primary" style="font-size: 0.85rem; padding: 0.65rem 1.25rem;">
+          <div style="display: flex; gap: 1rem; align-items: center; padding-top: 0.5rem;">
+            <button id="btn-test-db-ping" type="button" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.65rem 1.25rem;">
               Test Database Ping
             </button>
             <span id="db-ping-status" style="font-size: 0.85rem; color: var(--text-muted);"></span>
@@ -891,6 +973,68 @@ export async function renderAdminDashboardPage(root) {
         statusEl.style.color = '#f87171';
       }
     }
+  });
+
+  // Test n8n / MCP Webhook Ping Button
+  document.getElementById('btn-test-mcp-ping')?.addEventListener('click', async () => {
+    const urlInput = document.getElementById('settings-mcp-webhook-url');
+    const secretInput = document.getElementById('settings-mcp-secret');
+    const statusEl = document.getElementById('mcp-ping-status');
+
+    const url = urlInput?.value?.trim() || '';
+    const secret = secretInput?.value?.trim() || '';
+
+    if (!url) {
+      showToast('Please enter an n8n / MCP Webhook URL first.', 'error');
+      if (statusEl) {
+        statusEl.textContent = 'URL required';
+        statusEl.style.color = '#f87171';
+      }
+      return;
+    }
+
+    if (statusEl) {
+      statusEl.textContent = 'Dispatching test payload to n8n / MCP...';
+      statusEl.style.color = 'var(--accent-cyan)';
+    }
+
+    try {
+      await testMcpWebhook(url, secret);
+      if (statusEl) {
+        statusEl.textContent = '✓ Webhook responded 200 OK! Payload successfully delivered to n8n.';
+        statusEl.style.color = '#34d399';
+      }
+      showToast('n8n / MCP Webhook ping successful!', 'success');
+    } catch (err) {
+      if (statusEl) {
+        statusEl.textContent = `Error: ${err.message}`;
+        statusEl.style.color = '#f87171';
+      }
+      showToast(`Webhook ping failed: ${err.message}`, 'error');
+    }
+  });
+
+  // Save All Settings Button
+  document.getElementById('btn-save-all-settings')?.addEventListener('click', () => {
+    const mcpUrl = document.getElementById('settings-mcp-webhook-url')?.value?.trim() || '';
+    const mcpSecret = document.getElementById('settings-mcp-secret')?.value?.trim() || '';
+    const adminPhone = document.getElementById('settings-admin-whatsapp-number')?.value?.trim() || '';
+    const adminUrl = document.getElementById('settings-admin-whatsapp-url')?.value?.trim() || '';
+    const statusEl = document.getElementById('settings-save-status');
+
+    saveAppSettings({
+      mcpWebhookUrl: mcpUrl,
+      mcpSecretKey: mcpSecret,
+      adminWhatsappNumber: adminPhone,
+      adminWhatsappUrl: adminUrl
+    });
+
+    if (statusEl) {
+      statusEl.textContent = '✓ All settings saved successfully!';
+      setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3500);
+    }
+
+    showToast('n8n MCP & WhatsApp settings saved!', 'success');
   });
 }
 
