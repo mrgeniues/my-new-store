@@ -1470,3 +1470,45 @@
   border-color: var(--accent-cyan);
   box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
 }
+
+/* Global Form Inputs for Admin & Dashboard */
+.form-group {
+  margin-bottom: 1.25rem;
+}
+
+.form-group label,
+.form-label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.4rem;
+}
+
+.form-input,
+.form-textarea {
+  width: 100%;
+  background: rgba(15, 23, 42, 0.75) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  color: var(--text-pure) !important;
+  font-family: inherit;
+  font-size: 0.92rem;
+  transition: all var(--transition-fast);
+  box-sizing: border-box;
+}
+
+.form-input:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: #818cf8 !important;
+  background: rgba(15, 23, 42, 0.95) !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+}
+
+.form-textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+

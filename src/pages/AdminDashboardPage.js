@@ -658,112 +658,173 @@ export async function renderAdminDashboardPage(root) {
 
       <!-- TAB 4: STORE, MCP & WHATSAPP SETTINGS -->
       <div id="tab-content-settings" style="${activeTab === 'settings' ? 'display: block;' : 'display: none;'}">
-        <!-- Card 1: n8n & MCP Automation Webhook -->
-        <div class="admin-table-card" style="max-width: 860px; margin-bottom: 2rem;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.85rem; flex-wrap: wrap; gap: 0.75rem;">
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-              <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(234, 88, 12, 0.15); border: 1px solid rgba(234, 88, 12, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+        <!-- Card 1: n8n & MCP Automation Webhook (Large, Prominent & High-Contrast) -->
+        <div class="admin-table-card" style="max-width: 920px; margin-bottom: 2.25rem; background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.08), rgba(15, 23, 42, 0.95)); border: 2px solid rgba(99, 102, 241, 0.35); border-radius: 18px; padding: 2rem; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);">
+          
+          <!-- Header -->
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem;">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+              <div style="width: 52px; height: 52px; border-radius: 14px; background: linear-gradient(135deg, rgba(234, 88, 12, 0.25), rgba(99, 102, 241, 0.3)); border: 1.5px solid rgba(234, 88, 12, 0.5); display: flex; align-items: center; justify-content: center; font-size: 1.6rem; box-shadow: 0 0 20px rgba(234, 88, 12, 0.2);">
                 ⚡
               </div>
               <div>
-                <h3 style="font-size: 1.25rem; color: var(--text-pure); font-weight: 700; margin: 0;">
-                  n8n &amp; MCP (Model Context Protocol) Automation
+                <h3 style="font-size: 1.35rem; color: #ffffff; font-weight: 800; margin: 0; letter-spacing: -0.01em;">
+                  n8n &amp; MCP (Model Context Protocol) Automation Link
                 </h3>
-                <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0.2rem 0 0 0;">
-                  Forward all customer inquiries, order requests, and messages straight into your n8n workflow or AI Agent via MCP.
+                <p style="font-size: 0.88rem; color: #94a3b8; margin: 0.3rem 0 0 0;">
+                  Customer queries, lead inquiries, and order messages are forwarded directly to your n8n workflow or AI Agent.
                 </p>
               </div>
             </div>
-            <span class="badge badge-popular" style="background: rgba(234, 88, 12, 0.2); color: #fb923c; border-color: rgba(234, 88, 12, 0.4);">n8n / MCP Hook</span>
+            <span class="badge" style="background: rgba(99, 102, 241, 0.25); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.5); font-size: 0.82rem; font-weight: 700; padding: 0.4rem 0.85rem; border-radius: 999px;">
+              ⚡ Live Webhook Integration
+            </span>
           </div>
 
-          <div class="form-group" style="margin-bottom: 1.25rem;">
-            <label class="form-label">n8n / MCP Webhook Endpoint URL</label>
-            <input 
-              type="url" 
-              id="settings-mcp-webhook-url" 
-              class="form-input" 
-              value="${appSettings.mcpWebhookUrl || ''}" 
-              placeholder="https://your-n8n-instance.com/webhook/ai-tools-contact"
-            />
-            <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.35rem;">
-              Every query submitted on the Contact page will trigger an HTTP POST request to this endpoint with full customer payload (name, email, WhatsApp number, topic, message).
-            </p>
+          <!-- The Large & Clear Link Input Container -->
+          <div style="margin-bottom: 1.75rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.65rem; flex-wrap: wrap; gap: 0.5rem;">
+              <label style="font-size: 1.05rem; font-weight: 800; color: #f8fafc; display: flex; align-items: center; gap: 0.5rem; margin: 0;">
+                <span style="color: #38bdf8;">🔗</span> n8n Webhook / MCP Endpoint Link (Add Your Full Link Here):
+              </label>
+              <div style="display: flex; gap: 0.5rem;">
+                <button 
+                  id="btn-paste-mcp-url" 
+                  type="button" 
+                  style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 0.82rem; font-weight: 700; padding: 0.35rem 0.85rem; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; transition: all 0.2s;"
+                  title="Clipboard se link paste karein"
+                >
+                  📋 Paste Link
+                </button>
+                <button 
+                  id="btn-clear-mcp-url" 
+                  type="button" 
+                  style="background: rgba(248, 113, 113, 0.12); border: 1px solid rgba(248, 113, 113, 0.3); color: #f87171; font-size: 0.82rem; font-weight: 600; padding: 0.35rem 0.75rem; border-radius: 8px; cursor: pointer; transition: all 0.2s;"
+                  title="Link ko clear karein"
+                >
+                  ✕ Clear
+                </button>
+              </div>
+            </div>
+
+            <!-- Big, high-contrast, wide input box -->
+            <div style="position: relative; width: 100%;">
+              <input 
+                type="url" 
+                id="settings-mcp-webhook-url" 
+                value="${appSettings.mcpWebhookUrl || ''}" 
+                placeholder="https://n8n.yourdomain.com/webhook/contact-inquiries"
+                style="width: 100% !important; min-height: 58px !important; font-size: 1.05rem !important; font-family: 'JetBrains Mono', monospace !important; padding: 0.95rem 1.25rem 0.95rem 3.2rem !important; background: #070d18 !important; border: 2px solid #6366f1 !important; border-radius: 12px !important; color: #38bdf8 !important; box-shadow: 0 0 25px rgba(99, 102, 241, 0.22) !important; outline: none !important; box-sizing: border-box !important; display: block !important;"
+              />
+              <span style="position: absolute; left: 1.1rem; top: 50%; transform: translateY(-50%); font-size: 1.35rem; color: #818cf8; pointer-events: none;">
+                🌐
+              </span>
+            </div>
+
+            <!-- Clear Example & Instructions Card -->
+            <div style="margin-top: 0.85rem; padding: 0.9rem 1.25rem; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 12px; border-left: 4px solid #38bdf8;">
+              <div style="font-size: 0.85rem; font-weight: 700; color: #38bdf8; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.4rem;">
+                💡 Sahi n8n Webhook Link Ki Example (Format Check):
+              </div>
+              <code style="display: block; padding: 0.5rem 0.85rem; background: #070d18; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: #7dd3fc; font-family: 'JetBrains Mono', monospace; font-size: 0.88rem; word-break: break-all; margin: 0.3rem 0;">
+                https://n8n-1rsy.srv1898856.hstgr.cloud/webhook/contact-inquiry
+              </code>
+              <p style="font-size: 0.8rem; color: #94a3b8; margin: 0.35rem 0 0 0; line-height: 1.45;">
+                ⚠️ <strong>Aham Note:</strong> URL poora hona zaroori hai (host/domain aur <code>/webhook/...</code> path samait). Agar URL adhoora hoga to browser <em>"Failed to fetch"</em> error dikhaye ga.
+              </p>
+            </div>
           </div>
 
-          <div class="form-group" style="margin-bottom: 1.5rem;">
-            <label class="form-label">MCP Secret Token / API Key (Optional Header)</label>
+          <!-- Secret Token / Key (Optional) -->
+          <div style="margin-bottom: 1.75rem;">
+            <label style="font-size: 0.95rem; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+              🛡️ MCP Secret Token / Header Key <span style="font-size: 0.8rem; font-weight: 400; color: #94a3b8;">(Optional - agar n8n webhook authentication rakhi ho)</span>:
+            </label>
             <input 
-              type="password" 
+              type="text" 
               id="settings-mcp-secret" 
-              class="form-input" 
               value="${appSettings.mcpSecretKey || ''}" 
-              placeholder="e.g. bearer_token_or_secret_key"
+              placeholder="e.g. your_bearer_token_or_secret_header"
+              style="width: 100% !important; min-height: 50px !important; font-size: 0.95rem !important; font-family: 'JetBrains Mono', monospace !important; padding: 0.85rem 1.25rem !important; background: #070d18 !important; border: 1.5px solid rgba(255, 255, 255, 0.15) !important; border-radius: 10px !important; color: #e2e8f0 !important; box-sizing: border-box !important; display: block !important;"
             />
-            <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.35rem;">
-              If set, sent in the <code style="color: var(--accent-cyan);">Authorization: Bearer</code> and <code style="color: var(--accent-cyan);">X-MCP-Secret</code> headers.
+            <p style="font-size: 0.76rem; color: #94a3b8; margin-top: 0.35rem;">
+              Yeh secret key HTTP headers mein <code style="color: #38bdf8;">Authorization: Bearer &lt;key&gt;</code> aur <code style="color: #38bdf8;">X-MCP-Secret</code> ban kar bhej di jaye gi.
             </p>
           </div>
 
-          <div style="display: flex; gap: 1rem; align-items: center; padding-top: 1rem; border-top: 1px solid var(--border-subtle); flex-wrap: wrap;">
-            <button id="btn-test-mcp-ping" type="button" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.65rem 1.25rem;">
+          <!-- Ping Test Row -->
+          <div style="display: flex; gap: 1rem; align-items: center; padding-top: 1.25rem; border-top: 1px solid rgba(255, 255, 255, 0.1); flex-wrap: wrap;">
+            <button 
+              id="btn-test-mcp-ping" 
+              type="button" 
+              style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #ffffff; font-size: 0.92rem; font-weight: 800; padding: 0.75rem 1.6rem; border-radius: 10px; border: none; cursor: pointer; box-shadow: 0 4px 18px rgba(99, 102, 241, 0.4); display: flex; align-items: center; gap: 0.5rem; transition: transform 0.15s;"
+            >
               ⚡ Test n8n / MCP Ping
             </button>
-            <span id="mcp-ping-status" style="font-size: 0.85rem; color: var(--text-muted);"></span>
+            <div id="mcp-ping-status" style="font-size: 0.88rem; font-weight: 600; color: #94a3b8; max-width: 580px;"></div>
           </div>
         </div>
 
         <!-- Card 2: WhatsApp & Support Contact Settings -->
-        <div class="admin-table-card" style="max-width: 860px; margin-bottom: 2rem;">
-          <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.85rem;">
-            <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(37, 211, 102, 0.15); border: 1px solid rgba(37, 211, 102, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; color: #25D366;">
+        <div class="admin-table-card" style="max-width: 920px; margin-bottom: 2.25rem; background: radial-gradient(circle at top right, rgba(37, 211, 102, 0.08), rgba(15, 23, 42, 0.95)); border: 2px solid rgba(37, 211, 102, 0.3); border-radius: 18px; padding: 2rem; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);">
+          <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 1.25rem;">
+            <div style="width: 52px; height: 52px; border-radius: 14px; background: rgba(37, 211, 102, 0.2); border: 1.5px solid rgba(37, 211, 102, 0.5); display: flex; align-items: center; justify-content: center; font-size: 1.6rem; color: #25D366; box-shadow: 0 0 20px rgba(37, 211, 102, 0.2);">
               📱
             </div>
             <div>
-              <h3 style="font-size: 1.25rem; color: var(--text-pure); font-weight: 700; margin: 0;">
+              <h3 style="font-size: 1.35rem; color: #ffffff; font-weight: 800; margin: 0;">
                 WhatsApp &amp; Direct Support Concierge
               </h3>
-              <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0.2rem 0 0 0;">
+              <p style="font-size: 0.88rem; color: #94a3b8; margin: 0.3rem 0 0 0;">
                 Configure your official WhatsApp numbers and community links used for customer order fulfillments.
               </p>
             </div>
           </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem;">
-            <div class="form-group">
-              <label class="form-label">Admin WhatsApp Contact Number</label>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; margin-bottom: 1.75rem;">
+            <div>
+              <label style="font-size: 0.95rem; font-weight: 700; color: #f8fafc; display: block; margin-bottom: 0.5rem;">
+                📞 Admin WhatsApp Contact Number:
+              </label>
               <input 
                 type="text" 
                 id="settings-admin-whatsapp-number" 
-                class="form-input" 
                 value="${appSettings.adminWhatsappNumber || ''}" 
                 placeholder="e.g. +92 300 1234567"
+                style="width: 100% !important; min-height: 52px !important; font-size: 1rem !important; padding: 0.85rem 1.25rem !important; background: #070d18 !important; border: 1.5px solid rgba(37, 211, 102, 0.4) !important; border-radius: 10px !important; color: #4ade80 !important; box-sizing: border-box !important; display: block !important;"
               />
-              <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.35rem;">
+              <p style="font-size: 0.76rem; color: #94a3b8; margin-top: 0.35rem;">
                 Used for automated WhatsApp direct chat and support routing.
               </p>
             </div>
 
-            <div class="form-group">
-              <label class="form-label">WhatsApp Community / Channel URL</label>
+            <div>
+              <label style="font-size: 0.95rem; font-weight: 700; color: #f8fafc; display: block; margin-bottom: 0.5rem;">
+                🌐 WhatsApp Community / Channel URL:
+              </label>
               <input 
                 type="text" 
                 id="settings-admin-whatsapp-url" 
-                class="form-input" 
                 value="${appSettings.adminWhatsappUrl || defaultWhatsappUrl}" 
                 placeholder="https://chat.whatsapp.com/..."
+                style="width: 100% !important; min-height: 52px !important; font-size: 1rem !important; padding: 0.85rem 1.25rem !important; background: #070d18 !important; border: 1.5px solid rgba(37, 211, 102, 0.4) !important; border-radius: 10px !important; color: #4ade80 !important; box-sizing: border-box !important; display: block !important;"
               />
-              <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.35rem;">
+              <p style="font-size: 0.76rem; color: #94a3b8; margin-top: 0.35rem;">
                 Official group/channel invite link for users.
               </p>
             </div>
           </div>
 
-          <div style="display: flex; gap: 1rem; align-items: center; padding-top: 1rem; border-top: 1px solid var(--border-subtle);">
-            <button id="btn-save-all-settings" type="button" class="btn btn-primary" style="font-size: 0.9rem; padding: 0.75rem 2rem; font-weight: 700;">
-              Save All Settings
+          <!-- Save Button -->
+          <div style="display: flex; gap: 1.25rem; align-items: center; padding-top: 1.25rem; border-top: 1px solid rgba(255, 255, 255, 0.1); flex-wrap: wrap;">
+            <button 
+              id="btn-save-all-settings" 
+              type="button" 
+              style="background: linear-gradient(135deg, #10b981, #059669); color: #ffffff; font-size: 1rem; font-weight: 800; padding: 0.9rem 2.5rem; border-radius: 12px; border: none; cursor: pointer; box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4); display: flex; align-items: center; gap: 0.6rem; transition: transform 0.15s;"
+            >
+              💾 Save All Settings &amp; Apply
             </button>
-            <span id="settings-save-status" style="font-size: 0.85rem; color: #34d399;"></span>
+            <span id="settings-save-status" style="font-size: 0.95rem; font-weight: 700; color: #34d399;"></span>
           </div>
         </div>
 
@@ -972,6 +1033,34 @@ export async function renderAdminDashboardPage(root) {
         statusEl.textContent = `Ping failed: ${e.message}`;
         statusEl.style.color = '#f87171';
       }
+    }
+  });
+
+  // Paste & Clear Buttons for n8n Webhook URL
+  document.getElementById('btn-paste-mcp-url')?.addEventListener('click', async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        const input = document.getElementById('settings-mcp-webhook-url');
+        if (input) {
+          input.value = text.trim();
+          input.focus();
+          showToast('✓ Link clipboard se paste ho gaya!', 'success');
+        }
+      } else {
+        showToast('Clipboard mein koi text nahi mila.', 'info');
+      }
+    } catch (err) {
+      showToast('Clipboard direct access nahi mila. Input box mein Ctrl + V karein.', 'info');
+    }
+  });
+
+  document.getElementById('btn-clear-mcp-url')?.addEventListener('click', () => {
+    const input = document.getElementById('settings-mcp-webhook-url');
+    if (input) {
+      input.value = '';
+      input.focus();
+      showToast('Link clear ho gaya.', 'info');
     }
   });
 

@@ -57,15 +57,22 @@ export async function testMcpWebhook(url, secret = '') {
     timestamp: new Date().toISOString()
   };
 
-  const response = await fetch(url.trim(), {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload)
-  });
+  try {
+    const response = await fetch(url.trim(), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload)
+    });
 
-  if (!response.ok) {
-    throw new Error(`Webhook endpoint responded with status ${response.status}: ${response.statusText}`);
+    if (!response.ok) {
+      throw new Error(`Webhook responded with HTTP status ${response.status} (${response.statusText || 'Error'})`);
+    }
+
+    return true;
+  } catch (err) {
+    if (err.message && (err.message.includes('Failed to fetch') || err.name === 'TypeError')) {
+      throw new Error('Could not reach n8n server. Please verify: 1) Is the URL complete (e.g. https://.../webhook/...)? 2) If using Test URL, make sure you clicked "Listen for test event" in n8n.');
+    }
+    throw err;
   }
-
-  return true;
 }
