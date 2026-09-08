@@ -11,12 +11,24 @@ export class Router {
   }
 
   getRouteInfo() {
-    const hash = window.location.hash.slice(1) || '/';
-    const [pathPart, queryPart] = hash.split('?');
+    const rawHash = window.location.hash.slice(1) || '/';
+    let cleanHash = rawHash;
+    let anchor = '';
+
+    const anchorIndex = cleanHash.indexOf('#');
+    if (anchorIndex !== -1) {
+      anchor = cleanHash.slice(anchorIndex + 1);
+      cleanHash = cleanHash.slice(0, anchorIndex);
+    }
+
+    const [pathPart, queryPart] = cleanHash.split('?');
     const path = pathPart.startsWith('/') ? pathPart : `/${pathPart}`;
 
     const params = new URLSearchParams(queryPart || '');
-    return { path, params };
+    if (anchor && !params.has('section')) {
+      params.set('section', anchor);
+    }
+    return { path, params, anchor };
   }
 
   navigate(path, params = {}) {

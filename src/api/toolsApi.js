@@ -95,21 +95,22 @@ class ToolsApiService {
   // Storage keys for resilient offline/local caching of custom categories
   // =========================================================================
 
-  // Fetch raw categories from Supabase (with fallback to localStorage + defaults)
+  // Fetch raw categories from Supabase (purely real admin categories, no fake defaults)
   async getRawCategories() {
     const STORAGE_CATEGORIES_KEY = 'ai_tools_custom_categories_v2';
     const STORAGE_DELETED_CATEGORIES_KEY = 'ai_tools_deleted_categories_v2';
 
-    const DEFAULT_CATEGORIES = [
-      { id: 'cat-writing', name: 'AI Writing', slug: 'ai-writing', icon: '✍️', color: '#a855f7', desc: 'Advanced copywriting, multilingual blog synthesis, and neural text refinement tools.', image: '', sortOrder: 1 },
-      { id: 'cat-image', name: 'AI Image', slug: 'ai-image', icon: '🎨', color: '#10b981', desc: 'Visual art synthesis, photorealistic artwork generation, and 4K texture upscaling.', image: '', sortOrder: 2 },
-      { id: 'cat-video', name: 'AI Video', slug: 'ai-video', icon: '🎬', color: '#f97316', desc: 'Video production, AI realistic avatars, automatic subtitles, and cinematic effects.', image: '', sortOrder: 3 },
-      { id: 'cat-audio', name: 'AI Audio', slug: 'ai-audio', icon: '🎙️', color: '#ec4899', desc: 'Voice cloning, text-to-speech, podcast audio cleaning, and studio music synthesis.', image: '', sortOrder: 4 },
-      { id: 'cat-coding', name: 'AI Coding', slug: 'ai-coding', icon: '💻', color: '#3b82f6', desc: 'AI pair programming, code refactoring, test suite generation, and multi-language linting.', image: '', sortOrder: 5 },
-      { id: 'cat-automation', name: 'AI Automation', slug: 'ai-automation', icon: '⚡', color: '#eab308', desc: 'Autonomous agent systems, workflow webhooks, and zero-code business automations.', image: '', sortOrder: 6 },
-      { id: 'cat-marketing', name: 'AI Marketing', slug: 'ai-marketing', icon: '📢', color: '#8b5cf6', desc: 'Conversion optimization, multi-channel ad copy, SEO rank tracking, and outreach bots.', image: '', sortOrder: 7 },
-      { id: 'cat-productivity', name: 'Productivity', slug: 'productivity', icon: '🚀', color: '#06b6d4', desc: 'Smart workspaces, knowledge retrieval engines, intelligent note organizers, and assistants.', image: '', sortOrder: 8 }
-    ];
+    // Legacy fake category keys to filter out so old client caches never show dummy defaults
+    const LEGACY_FAKE_KEYS = new Set([
+      'ai writing', 'ai-writing', 'cat-writing',
+      'ai image', 'ai-image', 'cat-image',
+      'ai video', 'ai-video', 'cat-video',
+      'ai audio', 'ai-audio', 'cat-audio',
+      'ai coding', 'ai-coding', 'cat-coding',
+      'ai automation', 'ai-automation', 'cat-automation',
+      'ai marketing', 'ai-marketing', 'cat-marketing',
+      'productivity', 'cat-productivity'
+    ]);
 
     let deletedKeys = [];
     try {
@@ -118,7 +119,7 @@ class ToolsApiService {
 
     let list = [];
 
-    // 1. Try Supabase categories table
+    // 1. Fetch real categories directly from Supabase
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase
@@ -128,53 +129,54 @@ class ToolsApiService {
           .order('created_at', { ascending: true });
 
         if (!error && Array.isArray(data) && data.length > 0) {
-          list = data.map((r) => ({
-            id: r.id,
-            name: r.name,
-            slug: r.slug || r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-            icon: r.icon || '✨',
-            color: r.color || '#6366f1',
-            desc: r.description || '',
-            description: r.description || '',
-            image: r.image || '',
-            sortOrder: typeof r.sort_order === 'number' ? r.sort_order : 0
-          }));
+          list = data
+            .filter((r) => !LEGACY_FAKE_KEYS.has((r.name || '').trim().toLowerCase()) && !LEGACY_FAKE_KEYS.has((r.slug || '').trim().toLowerCase()))
+            .map((r) => ({
+              id: r.id,
+              name: r.name,
+              slug: r.slug || r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+              icon: r.icon || '✨',
+              color: r.color || '#6366f1',
+              desc: r.description || '',
+              description: r.description || '',
+              image: r.image || '',
+              sortOrder: typeof r.sort_order === 'number' ? r.sort_order : 0
+            }));
         }
       } catch (err) {
-        // Table may not exist yet in Supabase; fallback smoothly
+        console.warn('[AI Tools Store] Notice fetching Supabase categories:', err.message);
       }
     }
 
-    // 2. Read local custom categories
-    let localCategories = [];
-    try {
-      localCategories = JSON.parse(localStorage.getItem(STORAGE_CATEGORIES_KEY) || '[]');
-    } catch (e) {}
-
-    // 3. Build unified category map
+    // 2. Build unified category map strictly from real database items (with local offline fallback)
     const categoryMap = new Map();
 
-    // Add default categories unless marked deleted
-    DEFAULT_CATEGORIES.forEach((def) => {
-      const key = def.name.toLowerCase();
-      if (!deletedKeys.includes(key) && !deletedKeys.includes(def.slug)) {
-        categoryMap.set(key, { ...def, count: 0 });
-      }
-    });
-
-    // Merge Supabase categories
-    list.forEach((item) => {
-      const key = item.name.toLowerCase();
-      categoryMap.set(key, { ...item, count: 0 });
-    });
-
-    // Merge local categories
-    localCategories.forEach((item) => {
-      const key = item.name.toLowerCase();
-      if (!deletedKeys.includes(key) && !deletedKeys.includes(item.slug)) {
+    if (list.length > 0) {
+      // Supabase has active categories created by admin
+      list.forEach((item) => {
+        const key = item.name.toLowerCase();
         categoryMap.set(key, { ...item, count: 0 });
-      }
-    });
+      });
+    } else {
+      // Fallback only if Supabase is offline or empty: check local custom categories
+      try {
+        const rawLocal = JSON.parse(localStorage.getItem(STORAGE_CATEGORIES_KEY) || '[]');
+        const sanitized = rawLocal.filter((item) => {
+          const key = (item.name || '').trim().toLowerCase();
+          const slug = (item.slug || '').trim().toLowerCase();
+          const id = (item.id || '').trim().toLowerCase();
+          return !LEGACY_FAKE_KEYS.has(key) && !LEGACY_FAKE_KEYS.has(slug) && !LEGACY_FAKE_KEYS.has(id);
+        });
+        localStorage.setItem(STORAGE_CATEGORIES_KEY, JSON.stringify(sanitized));
+
+        sanitized.forEach((item) => {
+          const key = item.name.toLowerCase();
+          if (!deletedKeys.includes(key) && !deletedKeys.includes(item.slug)) {
+            categoryMap.set(key, { ...item, count: 0 });
+          }
+        });
+      } catch (e) {}
+    }
 
     return Array.from(categoryMap.values()).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   }

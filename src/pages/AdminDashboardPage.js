@@ -1063,7 +1063,7 @@ function bindToolsTableEvents(toolsList, root) {
     btn.onclick = () => {
       const id = btn.dataset.id;
       const tool = toolsList.find((t) => t.id === id);
-      if (tool) openToolEditorModal(tool, root, categoriesList);
+      if (tool) openToolEditorModal(tool, root, categories);
     };
   });
 
@@ -1535,11 +1535,14 @@ function openCategoryEditorModal(existingCategory, root, allCategories = []) {
 function openToolEditorModal(existingTool, root, allCategories = []) {
   const modalRoot = document.getElementById('modal-root') || document.body;
 
-  const isEdit = Boolean(existingTool);
+  const defaultCatName = allCategories.length > 0 
+    ? (typeof allCategories[0] === 'string' ? allCategories[0] : allCategories[0].name)
+    : 'Ai Tools';
+
   const tool = existingTool || {
     name: '',
     slug: '',
-    category: allCategories.length > 0 ? allCategories[0].name : 'AI Writing',
+    category: defaultCatName,
     price: '$19 /month',
     shortDescription: '',
     fullDescription: '',
@@ -1640,19 +1643,17 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
             </div>
             <select id="tool-category" class="sort-select" style="width: 100%; border-radius: var(--radius-md);">
               ${allCategories.length > 0 
-                ? allCategories.map((c) => `
-                    <option value="${c.name}" ${(tool.category || '').toLowerCase() === c.name.toLowerCase() ? 'selected' : ''}>
-                      ${c.icon || '✨'} ${c.name}
-                    </option>
-                  `).join('')
+                ? allCategories.map((c) => {
+                    const cName = typeof c === 'string' ? c : c.name;
+                    const cIcon = (typeof c === 'object' && c.icon) ? c.icon : '✨';
+                    return `
+                      <option value="${cName}" ${(tool.category || '').toLowerCase() === cName.toLowerCase() ? 'selected' : ''}>
+                        ${cIcon} ${cName}
+                      </option>
+                    `;
+                  }).join('')
                 : `
-                  <option value="AI Writing" ${tool.category === 'AI Writing' ? 'selected' : ''}>✍️ AI Writing</option>
-                  <option value="AI Image" ${tool.category === 'AI Image' ? 'selected' : ''}>🎨 AI Image</option>
-                  <option value="AI Video" ${tool.category === 'AI Video' ? 'selected' : ''}>🎬 AI Video</option>
-                  <option value="AI Audio" ${tool.category === 'AI Audio' ? 'selected' : ''}>🎙️ AI Audio</option>
-                  <option value="AI Coding" ${tool.category === 'AI Coding' ? 'selected' : ''}>💻 AI Coding</option>
-                  <option value="AI Automation" ${tool.category === 'AI Automation' ? 'selected' : ''}>⚡ AI Automation</option>
-                  <option value="Productivity" ${tool.category === 'Productivity' ? 'selected' : ''}>🚀 Productivity</option>
+                  <option value="${tool.category || 'Ai Tools'}" selected>✨ ${tool.category || 'Ai Tools'}</option>
                 `
               }
             </select>

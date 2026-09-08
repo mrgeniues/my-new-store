@@ -4,7 +4,8 @@ import { formatVideoEmbedUrl } from '../utils/helpers.js';
 export function renderHowToUse(tool) {
   if (!tool) return '';
 
-  const embedUrl = formatVideoEmbedUrl(tool.videoUrl);
+  const rawVideo = tool.tutorialVideoUrl || tool.videoUrl || tool.tutorial_video_url || '';
+  const embedUrl = formatVideoEmbedUrl(rawVideo);
   const instructions = Array.isArray(tool.howToUse) && tool.howToUse.length > 0
     ? tool.howToUse
     : [

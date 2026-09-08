@@ -229,6 +229,25 @@ export async function renderToolDetailsPage(root, { pathParams }) {
   attachNavbarEvents();
   initCardInteractions();
 
+  // Smooth scroll and pulse highlight for How to Use / Video Section if navigated via How to Use
+  const isHowToUseTarget = queryParams?.get('section') === 'how-to-use' || 
+                           queryParams?.get('tab') === 'how-to-use' || 
+                           window.location.hash.includes('how-to-use');
+
+  if (isHowToUseTarget) {
+    setTimeout(() => {
+      const section = document.getElementById('how-to-use');
+      if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const videoCard = section.querySelector('.video-player-card');
+        if (videoCard) {
+          videoCard.classList.add('video-focus-glow');
+          setTimeout(() => videoCard.classList.remove('video-focus-glow'), 3500);
+        }
+      }
+    }, 150);
+  }
+
   const buyNowBtn = document.getElementById('tool-buy-now-btn');
   if (buyNowBtn) {
     buyNowBtn.onclick = (e) => {

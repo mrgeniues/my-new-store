@@ -49,12 +49,9 @@ export function renderFooter() {
           <div class="footer-col">
             <h4>${t('nav.categories')}</h4>
             <ul class="footer-links">
-              <li><a href="#/tools?category=AI%20Writing">AI Writing</a></li>
-              <li><a href="#/tools?category=Image%20Generation">Image Generation</a></li>
-              <li><a href="#/tools?category=Video%20Editing">Video Editing</a></li>
-              <li><a href="#/tools?category=Voice%20%26%20Audio">Voice & Audio</a></li>
-              <li><a href="#/tools?category=Productivity">Productivity</a></li>
-              <li><a href="#/tools?category=Code%20%26%20Dev">Code & Developer</a></li>
+              <li><a href="#/categories">${t('categories.viewAll')}</a></li>
+              <li><a href="#/tools">${t('nav.allTools')}</a></li>
+              <li><a href="#/tools?category=Ai%20Tools">Ai Tools</a></li>
             </ul>
           </div>
 

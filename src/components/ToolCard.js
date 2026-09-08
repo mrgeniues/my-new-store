@@ -203,7 +203,7 @@ export function renderToolCard(rawTool) {
       <!-- Secondary Actions Row: How to Use & View Details -->
       <div class="card-secondary-actions-row">
         <a 
-          href="#/tool/${tool.id}" 
+          href="#/tool/${tool.id}?section=how-to-use" 
           class="btn-sub-card btn-how-to-use" 
           data-tool-id="${tool.id}"
           title="${t('card.howToUse')}: ${tool.name}"
@@ -278,14 +278,13 @@ export function initCardInteractions() {
     };
   });
 
-  // Protected How to Use Action: prompts Auth if logged out, resumes navigation on success
+  // How to Use Action: navigate directly to tool details and scroll straight to video player
   document.querySelectorAll('.btn-how-to-use').forEach((btn) => {
     btn.onclick = (e) => {
-      e.preventDefault();
       const toolId = btn.dataset.toolId;
-      requireAuth(() => {
-        window.location.hash = `#/tool/${toolId}#how-to-use`;
-      }, { defaultTab: 'signup' });
+      if (toolId) {
+        window.location.hash = `#/tool/${toolId}?section=how-to-use`;
+      }
     };
   });
 
