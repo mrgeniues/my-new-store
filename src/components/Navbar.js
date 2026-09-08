@@ -14,11 +14,25 @@ import { defaultWhatsappUrl } from '../lib/supabase.js';
 export function renderCountrySelector(context = 'nav') {
   const userCountry = authService.getUserCountry() || 'Pakistan';
   const flag = getCountryFlag(userCountry);
-  const shortLabel = userCountry === 'Pakistan' ? 'PKR' : userCountry === 'India' ? 'INR' : userCountry === 'United Arab Emirates' ? 'AED' : userCountry === 'Saudi Arabia' ? 'SAR' : 'USD';
+  const shortLabel = userCountry === 'Pakistan' ? 'PKR' : userCountry === 'India' ? 'INR' : userCountry === 'United Arab Emirates' ? 'AED' : userCountry === 'Saudi Arabia' ? 'SAR' : userCountry === 'United Kingdom' ? 'GBP' : 'USD';
+  const isAdmin = authService.isAdmin();
 
+  // Regular users & guests see their tailored country/currency badge without switcher
+  if (!isAdmin) {
+    return `
+      <div class="nav-country-wrapper" id="${context}-country-wrapper" style="position: relative; display: inline-block;">
+        <div class="nav-country-btn" id="${context}-country-btn" style="cursor: default; opacity: 0.95; padding: 0.4rem 0.65rem;" title="Your Region: ${userCountry} (${shortLabel})">
+          <span>${flag}</span>
+          <span style="font-weight: 700; font-size: 0.75rem;">${shortLabel}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  // Admin view: Can switch and inspect pricing for any country
   return `
     <div class="nav-country-wrapper" id="${context}-country-wrapper" style="position: relative; display: inline-block;">
-      <button type="button" class="nav-country-btn" id="${context}-country-btn" title="Pricing Country: ${userCountry} (${shortLabel})">
+      <button type="button" class="nav-country-btn" id="${context}-country-btn" title="Admin View Pricing For: ${userCountry} (${shortLabel})">
         <span>${flag}</span>
         <span style="font-weight: 700; font-size: 0.75rem;">${shortLabel}</span>
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -27,8 +41,9 @@ export function renderCountrySelector(context = 'nav') {
       </button>
 
       <div class="nav-country-dropdown" id="${context}-country-dropdown" style="display: none;">
-        <div style="font-size: 0.68rem; color: var(--text-muted); padding: 0.35rem 0.65rem; text-transform: uppercase; font-weight: 700; border-bottom: 1px solid var(--border-glass); margin-bottom: 0.25rem;">
-          View Pricing For:
+        <div style="font-size: 0.68rem; color: var(--accent-cyan); padding: 0.35rem 0.65rem; text-transform: uppercase; font-weight: 800; border-bottom: 1px solid var(--border-glass); margin-bottom: 0.25rem; display: flex; align-items: center; justify-content: space-between;">
+          <span>View Pricing For:</span>
+          <span style="font-size: 0.6rem; background: rgba(56,189,248,0.2); padding: 0.05rem 0.35rem; border-radius: 4px; color: #38bdf8;">Admin</span>
         </div>
         <button type="button" class="nav-country-option ${userCountry === 'Pakistan' ? 'active' : ''}" data-country="Pakistan">
           <span>🇵🇰</span>

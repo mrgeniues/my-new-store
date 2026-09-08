@@ -75,9 +75,10 @@ export async function renderToolDetailsPage(root, { pathParams }) {
         <!-- Left Column: Tool Specs & Descriptions -->
         <div class="details-main-content">
           ${tool.image ? `
-            <div class="details-banner-preview" style="margin-bottom: 1.5rem; border-radius: 18px; overflow: hidden; position: relative; height: 210px; background: rgba(15,23,42,0.75); border: 1px solid rgba(255,255,255,0.12); display: flex; align-items: center; justify-content: center;">
-              <img src="${tool.image}" alt="${tool.name}" style="position: absolute; inset: -15px; width: calc(100% + 30px); height: calc(100% + 30px); object-fit: cover; filter: blur(20px); opacity: 0.45;" aria-hidden="true" />
-              <img src="${tool.image}" alt="${tool.name} banner" style="position: relative; z-index: 1; width: 100%; height: 100%; object-fit: contain;" />
+            <div class="details-banner-preview" style="margin-bottom: 1.5rem; border-radius: 20px; overflow: hidden; position: relative; height: 260px; background: rgba(15,23,42,0.9); border: 1px solid rgba(255,255,255,0.12); display: flex; align-items: center; justify-content: center; box-shadow: 0 12px 32px -8px rgba(0,0,0,0.6);">
+              <img src="${tool.image}" alt="${tool.name}" style="position: absolute; inset: -20px; width: calc(100% + 40px); height: calc(100% + 40px); object-fit: cover; filter: blur(25px); opacity: 0.45;" aria-hidden="true" />
+              <img src="${tool.image}" alt="${tool.name} banner" style="position: relative; z-index: 1; width: 100%; height: 100%; object-fit: cover; object-position: center;" />
+              <div style="position: absolute; inset: 0; z-index: 2; background: linear-gradient(180deg, transparent 60%, rgba(10,15,30,0.4) 100%); pointer-events: none;"></div>
             </div>
           ` : ''}
 

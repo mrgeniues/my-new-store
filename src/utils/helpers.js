@@ -55,11 +55,30 @@ export function getToolLocalizedPrice(tool, targetCountry = '') {
 
   const cleanTarget = country.toLowerCase().trim();
 
-  // 1. Direct match on country name in pricing object
+  // Country alias mappings
+  const countryAliases = {
+    'pakistan': ['pakistan', 'pk', 'pkr'],
+    'india': ['india', 'in', 'inr'],
+    'united arab emirates': ['united arab emirates', 'uae', 'emirates', 'ae', 'aed'],
+    'saudi arabia': ['saudi arabia', 'saudi', 'sar', 'ksa', 'sa'],
+    'united states': ['united states', 'usa', 'us', 'usd', 'america'],
+    'united kingdom': ['united kingdom', 'uk', 'gbp', 'britain', 'gb']
+  };
+
+  // Find target's alias group if available
+  let targetAliases = [cleanTarget];
+  for (const [canon, aliases] of Object.entries(countryAliases)) {
+    if (cleanTarget === canon || aliases.includes(cleanTarget) || cleanTarget.includes(canon)) {
+      targetAliases = aliases;
+      break;
+    }
+  }
+
+  // 1. Direct match or alias match on country name in pricing object
   for (const [key, val] of Object.entries(pricing)) {
     if (val && typeof val === 'string' && val.trim()) {
       const k = key.toLowerCase().trim();
-      if (k === cleanTarget || cleanTarget.includes(k) || k.includes(cleanTarget)) {
+      if (targetAliases.includes(k) || k === cleanTarget) {
         return val.trim();
       }
     }

@@ -4,9 +4,10 @@ import { authService } from '../lib/auth.js';
 import { toolsApi } from '../api/toolsApi.js';
 import { renderNavbar, attachNavbarEvents } from '../components/Navbar.js';
 import { renderFooter } from '../components/Footer.js';
-import { showToast, getCountryFlag } from '../utils/helpers.js';
+import { showToast, getCountryFlag, getToolLocalizedPrice } from '../utils/helpers.js';
 
 let activeTab = 'tools'; // 'tools' | 'users' | 'analytics' | 'settings'
+let adminPricingCountry = 'Pakistan';
 
 export async function renderAdminDashboardPage(root) {
   document.title = 'Admin Management | AI Tools Store';
@@ -337,13 +338,70 @@ export async function renderAdminDashboardPage(root) {
 
         <!-- Inventory Table Card -->
         <div class="admin-table-card">
+          <!-- View Pricing Mode for Admin -->
+          <div class="admin-pricing-mode-bar" style="margin-bottom: 1.5rem; padding: 1.1rem 1.35rem; background: linear-gradient(135deg, rgba(30, 41, 59, 0.75), rgba(15, 23, 42, 0.9)); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 16px; box-shadow: 0 8px 24px -6px rgba(0,0,0,0.5);">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.85rem;">
+              <div style="display: flex; align-items: center; gap: 0.65rem;">
+                <div style="width: 38px; height: 38px; border-radius: 10px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.15rem;">
+                  🌍
+                </div>
+                <div>
+                  <div style="font-size: 0.95rem; font-weight: 800; color: var(--text-pure); display: flex; align-items: center; gap: 0.5rem;">
+                    <span>View Pricing Mode & Live Country Inspector</span>
+                    <span class="badge badge-popular" style="font-size: 0.65rem; padding: 0.1rem 0.45rem;">Admin Panel Only</span>
+                  </div>
+                  <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.1rem;">
+                    Select any country below to see what localized prices are displayed for store visitors in that country.
+                  </div>
+                </div>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <button type="button" id="admin-sync-store-country-btn" class="btn btn-secondary" style="font-size: 0.78rem; padding: 0.45rem 0.85rem; border-color: rgba(56, 189, 248, 0.4); color: var(--accent-cyan);" title="Sync active storefront preview to this country">
+                  <span>Sync Storefront to <strong id="admin-preview-country-label">${adminPricingCountry}</strong> ↗</span>
+                </button>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;" id="admin-pricing-country-chips">
+              <button type="button" class="currency-chip ${adminPricingCountry === 'Pakistan' ? 'active' : ''}" data-country="Pakistan">
+                <span>🇵🇰</span> <span>Pakistan (PKR)</span>
+              </button>
+              <button type="button" class="currency-chip ${adminPricingCountry === 'India' ? 'active' : ''}" data-country="India">
+                <span>🇮🇳</span> <span>India (INR ₹)</span>
+              </button>
+              <button type="button" class="currency-chip ${adminPricingCountry === 'United Arab Emirates' ? 'active' : ''}" data-country="United Arab Emirates">
+                <span>🇦🇪</span> <span>UAE (AED)</span>
+              </button>
+              <button type="button" class="currency-chip ${adminPricingCountry === 'Saudi Arabia' ? 'active' : ''}" data-country="Saudi Arabia">
+                <span>🇸🇦</span> <span>Saudi Arabia (SAR)</span>
+              </button>
+              <button type="button" class="currency-chip ${adminPricingCountry === 'United States' ? 'active' : ''}" data-country="United States">
+                <span>🇺🇸</span> <span>United States (USD $)</span>
+              </button>
+              <button type="button" class="currency-chip ${adminPricingCountry === 'United Kingdom' ? 'active' : ''}" data-country="United Kingdom">
+                <span>🇬🇧</span> <span>United Kingdom (GBP £)</span>
+              </button>
+              <button type="button" class="currency-chip ${adminPricingCountry === 'Global' ? 'active' : ''}" data-country="Global">
+                <span>🌐</span> <span>Global / Others (USD)</span>
+              </button>
+            </div>
+          </div>
+
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
-            <h3 style="font-size: 1.15rem; color: var(--text-pure); font-weight: 700;">AI Tools Inventory</h3>
+            <div>
+              <h3 style="font-size: 1.15rem; color: var(--text-pure); font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+                <span>AI Tools Inventory</span>
+                <span id="admin-table-country-pill" class="badge badge-new" style="font-size: 0.72rem; font-weight: 700;">
+                  ${getCountryFlag(adminPricingCountry)} Showing ${adminPricingCountry} Pricing
+                </span>
+              </h3>
+            </div>
             <span style="font-size: 0.8rem; color: var(--text-muted);">Real-time Supabase Database Sync</span>
           </div>
 
           <div id="tools-table-container">
-            ${renderToolsTableHtml(tools)}
+            ${renderToolsTableHtml(tools, adminPricingCountry)}
           </div>
         </div>
       </div>
@@ -697,7 +755,7 @@ export async function renderAdminDashboardPage(root) {
     const badge = document.getElementById('tools-count-badge');
     if (badge) badge.textContent = filtered.length;
     if (container) {
-      container.innerHTML = renderToolsTableHtml(filtered);
+      container.innerHTML = renderToolsTableHtml(filtered, adminPricingCountry);
       bindToolsTableEvents(filtered, root, categories);
     }
   };
@@ -705,6 +763,38 @@ export async function renderAdminDashboardPage(root) {
   if (searchInput) searchInput.oninput = applyToolsFilter;
   if (catFilter) catFilter.onchange = applyToolsFilter;
   if (statusFilter) statusFilter.onchange = applyToolsFilter;
+
+  // View Pricing Mode - Country Switcher for Admin
+  const pricingChipsContainer = document.getElementById('admin-pricing-country-chips');
+  if (pricingChipsContainer) {
+    pricingChipsContainer.querySelectorAll('.currency-chip').forEach((chip) => {
+      chip.onclick = (e) => {
+        e.preventDefault();
+        const country = chip.dataset.country;
+        adminPricingCountry = country;
+        pricingChipsContainer.querySelectorAll('.currency-chip').forEach((c) => c.classList.remove('active'));
+        chip.classList.add('active');
+
+        // Update labels in admin panel
+        const label = document.getElementById('admin-preview-country-label');
+        if (label) label.textContent = country;
+        const pill = document.getElementById('admin-table-country-pill');
+        if (pill) pill.innerHTML = `${getCountryFlag(country)} Showing ${country} Pricing`;
+
+        applyToolsFilter();
+        showToast(`Admin Pricing Inspector: Showing ${country} rates`, 'info');
+      };
+    });
+  }
+
+  // Sync Storefront Preview Button
+  const syncStoreBtn = document.getElementById('admin-sync-store-country-btn');
+  if (syncStoreBtn) {
+    syncStoreBtn.onclick = () => {
+      authService.setUserCountry(adminPricingCountry);
+      showToast(`✓ Storefront synchronized to ${adminPricingCountry} rates!`, 'success');
+    };
+  }
 
   // Bind tools table events initially
   bindToolsTableEvents(tools, root, categories);
@@ -804,7 +894,7 @@ export async function renderAdminDashboardPage(root) {
   });
 }
 
-function renderToolsTableHtml(toolsList) {
+function renderToolsTableHtml(toolsList, targetCountry = adminPricingCountry) {
   if (!toolsList || toolsList.length === 0) {
     return `
       <div style="text-align: center; padding: 3rem 1rem; color: var(--text-muted);">
@@ -814,13 +904,16 @@ function renderToolsTableHtml(toolsList) {
     `;
   }
 
+  const flag = getCountryFlag(targetCountry);
+
   return `
     <table class="admin-table">
       <thead>
         <tr>
           <th>Tool / Image</th>
           <th>Category</th>
-          <th>Price</th>
+          <th>Price (${flag} ${targetCountry})</th>
+          <th>All Rates Set</th>
           <th>WhatsApp Link</th>
           <th>Video Tutorial</th>
           <th>Featured</th>
@@ -829,7 +922,26 @@ function renderToolsTableHtml(toolsList) {
         </tr>
       </thead>
       <tbody>
-        ${toolsList.map((t) => `
+        ${toolsList.map((t) => {
+          const localizedPrice = getToolLocalizedPrice(t, targetCountry);
+          const cp = t.countryPricing || {};
+          const isCustom = Boolean(
+            cp[targetCountry] ||
+            (targetCountry === 'Pakistan' && (cp.Pakistan || cp.pakistan || cp.PK)) ||
+            (targetCountry === 'India' && (cp.India || cp.india || cp.IN)) ||
+            (targetCountry === 'United Arab Emirates' && (cp['United Arab Emirates'] || cp.UAE || cp.AE)) ||
+            (targetCountry === 'Saudi Arabia' && (cp['Saudi Arabia'] || cp.Saudi || cp.SAR || cp.SA)) ||
+            (targetCountry === 'United States' && (cp['United States'] || cp.US || cp.USD)) ||
+            (targetCountry === 'United Kingdom' && (cp['United Kingdom'] || cp.UK || cp.GBP || cp.GB))
+          );
+
+          const pkVal = cp.Pakistan || cp.PK || '—';
+          const inVal = cp.India || cp.IN || '—';
+          const uaeVal = cp['United Arab Emirates'] || cp.UAE || '—';
+          const saVal = cp['Saudi Arabia'] || cp.SAR || '—';
+          const usVal = cp['United States'] || cp.USD || cp.DEFAULT || t.price || '—';
+
+          return `
           <tr data-tool-id="${t.id}">
             <td>
               <div style="display: flex; align-items: center; gap: 0.75rem;">
@@ -843,7 +955,26 @@ function renderToolsTableHtml(toolsList) {
               </div>
             </td>
             <td><span class="badge badge-popular">${t.category}</span></td>
-            <td style="color: var(--accent-mint); font-weight: 700;">${t.price}</td>
+            <td>
+              <div style="font-size: 0.95rem; font-weight: 800; color: ${isCustom ? '#34d399' : 'var(--accent-cyan)'}; white-space: nowrap;">
+                ${localizedPrice}
+              </div>
+              <div style="margin-top: 0.2rem;">
+                ${isCustom ? 
+                  `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-size: 0.65rem; border: 1px solid rgba(16, 185, 129, 0.35);">✓ Custom Rate</span>` : 
+                  `<span class="badge" style="background: rgba(148, 163, 184, 0.12); color: var(--text-muted); font-size: 0.65rem; border: 1px solid rgba(148, 163, 184, 0.2);">Default / USD</span>`
+                }
+              </div>
+            </td>
+            <td>
+              <div style="font-size: 0.72rem; display: flex; flex-direction: column; gap: 0.15rem; color: var(--text-secondary); max-width: 170px;">
+                <div><strong style="color: var(--text-muted);">🇵🇰 PK:</strong> <span style="color: var(--text-pure);">${pkVal}</span></div>
+                <div><strong style="color: var(--text-muted);">🇮🇳 IN:</strong> <span style="color: var(--text-pure);">${inVal}</span></div>
+                <div><strong style="color: var(--text-muted);">🇦🇪 AE:</strong> <span style="color: var(--text-pure);">${uaeVal}</span></div>
+                <div><strong style="color: var(--text-muted);">🇸🇦 SA:</strong> <span style="color: var(--text-pure);">${saVal}</span></div>
+                <div><strong style="color: var(--text-muted);">🌐 USD:</strong> <span style="color: var(--text-pure);">${usVal}</span></div>
+              </div>
+            </td>
             <td>
               <span style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); display: inline-block; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${t.whatsappUrl || ''}">
                 ${t.whatsappUrl ? 'wa.me linked' : '<span style="color: #64748b;">None</span>'}
@@ -882,7 +1013,8 @@ function renderToolsTableHtml(toolsList) {
               </div>
             </td>
           </tr>
-        `).join('')}
+          `;
+        }).join('')}
       </tbody>
     </table>
   `;
@@ -1729,7 +1861,7 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
             <div class="geo-country-card">
               <div class="geo-country-label">
                 <span>🇦🇪</span>
-                <span>UAE / Middle East</span>
+                <span>UAE / Middle East (AED)</span>
               </div>
               <input 
                 type="text" 
@@ -1742,6 +1874,66 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
                 <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-uae" data-prefix="AED" data-val="29">AED 29</button>
                 <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-uae" data-prefix="AED" data-val="49">AED 49</button>
                 <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-uae" data-prefix="AED" data-val="89">AED 89</button>
+              </div>
+            </div>
+
+            <!-- Saudi Arabia -->
+            <div class="geo-country-card">
+              <div class="geo-country-label">
+                <span>🇸🇦</span>
+                <span>Saudi Arabia (SAR)</span>
+              </div>
+              <input 
+                type="text" 
+                id="geo-price-saudi" 
+                class="form-input geo-price-input" 
+                value="${tool.countryPricing?.['Saudi Arabia'] || tool.countryPricing?.Saudi || tool.countryPricing?.SAR || ''}" 
+                placeholder="e.g. SAR 49 /month" 
+              />
+              <div style="display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 0.2rem;">
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-saudi" data-prefix="SAR" data-val="29">SAR 29</button>
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-saudi" data-prefix="SAR" data-val="49">SAR 49</button>
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-saudi" data-prefix="SAR" data-val="89">SAR 89</button>
+              </div>
+            </div>
+
+            <!-- United States -->
+            <div class="geo-country-card">
+              <div class="geo-country-label">
+                <span>🇺🇸</span>
+                <span>United States (USD)</span>
+              </div>
+              <input 
+                type="text" 
+                id="geo-price-us" 
+                class="form-input geo-price-input" 
+                value="${tool.countryPricing?.['United States'] || tool.countryPricing?.US || tool.countryPricing?.USD || ''}" 
+                placeholder="e.g. $19 /month" 
+              />
+              <div style="display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 0.2rem;">
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-us" data-prefix="USD" data-val="9">$9</button>
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-us" data-prefix="USD" data-val="19">$19</button>
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-us" data-prefix="USD" data-val="29">$29</button>
+              </div>
+            </div>
+
+            <!-- United Kingdom -->
+            <div class="geo-country-card">
+              <div class="geo-country-label">
+                <span>🇬🇧</span>
+                <span>United Kingdom (GBP)</span>
+              </div>
+              <input 
+                type="text" 
+                id="geo-price-uk" 
+                class="form-input geo-price-input" 
+                value="${tool.countryPricing?.['United Kingdom'] || tool.countryPricing?.UK || tool.countryPricing?.GBP || ''}" 
+                placeholder="e.g. £15 /month" 
+              />
+              <div style="display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 0.2rem;">
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-uk" data-prefix="GBP" data-val="9">£9</button>
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-uk" data-prefix="GBP" data-val="15">£15</button>
+                <button type="button" class="quick-amount-chip country-quick-chip" data-target="geo-price-uk" data-prefix="GBP" data-val="25">£25</button>
               </div>
             </div>
 
@@ -2069,6 +2261,9 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
   const geoPkInput = document.getElementById('geo-price-pakistan');
   const geoInInput = document.getElementById('geo-price-india');
   const geoUaeInput = document.getElementById('geo-price-uae');
+  const geoSaudiInput = document.getElementById('geo-price-saudi');
+  const geoUsInput = document.getElementById('geo-price-us');
+  const geoUkInput = document.getElementById('geo-price-uk');
   const geoDefInput = document.getElementById('geo-price-default');
 
   // Smart Fill All
@@ -2078,6 +2273,9 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
     if (geoPkInput) geoPkInput.value = `${currentCurrency === 'PKR' ? amt : '500'} PKR ${durSuffix}`;
     if (geoInInput) geoInInput.value = `₹${currentCurrency === 'INR' ? amt : '499'} ${durSuffix}`;
     if (geoUaeInput) geoUaeInput.value = `AED ${currentCurrency === 'AED' ? amt : '49'} ${durSuffix}`;
+    if (geoSaudiInput) geoSaudiInput.value = `SAR ${currentCurrency === 'SAR' ? amt : '49'} ${durSuffix}`;
+    if (geoUsInput) geoUsInput.value = `$${currentCurrency === 'USD' ? amt : '19'} ${durSuffix}`;
+    if (geoUkInput) geoUkInput.value = `£${currentCurrency === 'GBP' ? amt : '15'} ${durSuffix}`;
     if (geoDefInput) geoDefInput.value = `$${currentCurrency === 'USD' ? amt : '19'} ${durSuffix}`;
     showToast(`⚡ All country rates filled with ${durSuffix}`);
   });
@@ -2090,6 +2288,9 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
     if (geoPkInput) geoPkInput.value = val;
     if (geoInInput) geoInInput.value = val;
     if (geoUaeInput) geoUaeInput.value = val;
+    if (geoSaudiInput) geoSaudiInput.value = val;
+    if (geoUsInput) geoUsInput.value = val;
+    if (geoUkInput) geoUkInput.value = val;
     if (geoDefInput) geoDefInput.value = val;
     if (mainPriceInput) {
       mainPriceInput.value = val;
@@ -2106,6 +2307,9 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
     if (geoPkInput) geoPkInput.value = val;
     if (geoInInput) geoInInput.value = val;
     if (geoUaeInput) geoUaeInput.value = val;
+    if (geoSaudiInput) geoSaudiInput.value = val;
+    if (geoUsInput) geoUsInput.value = val;
+    if (geoUkInput) geoUkInput.value = val;
     if (geoDefInput) geoDefInput.value = val;
     if (mainPriceInput) {
       mainPriceInput.value = val;
@@ -2133,6 +2337,9 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
     replaceDur(geoPkInput);
     replaceDur(geoInInput);
     replaceDur(geoUaeInput);
+    replaceDur(geoSaudiInput);
+    replaceDur(geoUsInput);
+    replaceDur(geoUkInput);
     replaceDur(geoDefInput);
     replaceDur(mainPriceInput);
     if (mainPriceInput) syncPriceToInputs(mainPriceInput.value);
@@ -2155,8 +2362,12 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
           targetInput.value = `₹${val} ${durSuffix}`;
         } else if (prefix === 'AED') {
           targetInput.value = `AED ${val} ${durSuffix}`;
+        } else if (prefix === 'SAR') {
+          targetInput.value = `SAR ${val} ${durSuffix}`;
         } else if (prefix === 'USD') {
           targetInput.value = `$${val} ${durSuffix}`;
+        } else if (prefix === 'GBP') {
+          targetInput.value = `£${val} ${durSuffix}`;
         }
       }
     });
@@ -2240,6 +2451,9 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
     const pkPrice = document.getElementById('geo-price-pakistan')?.value.trim() || '';
     const inPrice = document.getElementById('geo-price-india')?.value.trim() || '';
     const uaePrice = document.getElementById('geo-price-uae')?.value.trim() || '';
+    const saudiPrice = document.getElementById('geo-price-saudi')?.value.trim() || '';
+    const usPrice = document.getElementById('geo-price-us')?.value.trim() || '';
+    const ukPrice = document.getElementById('geo-price-uk')?.value.trim() || '';
     const defPrice = document.getElementById('geo-price-default')?.value.trim() || toolBasePrice;
 
     const countryPricing = {
@@ -2260,6 +2474,23 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
       countryPricing['United Arab Emirates'] = uaePrice;
       countryPricing.UAE = uaePrice;
       countryPricing.AE = uaePrice;
+    }
+    if (saudiPrice) {
+      countryPricing['Saudi Arabia'] = saudiPrice;
+      countryPricing.Saudi = saudiPrice;
+      countryPricing.SAR = saudiPrice;
+      countryPricing.SA = saudiPrice;
+    }
+    if (usPrice) {
+      countryPricing['United States'] = usPrice;
+      countryPricing.US = usPrice;
+      countryPricing.USD = usPrice;
+    }
+    if (ukPrice) {
+      countryPricing['United Kingdom'] = ukPrice;
+      countryPricing.UK = ukPrice;
+      countryPricing.GBP = ukPrice;
+      countryPricing.GB = ukPrice;
     }
 
     const payload = {

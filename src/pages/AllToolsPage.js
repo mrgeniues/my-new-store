@@ -27,39 +27,48 @@ export async function renderAllToolsPage(root, { queryParams }) {
         <p>${t('allTools.headerSubtitle')}</p>
       </header>
 
-      <!-- Currency & Country Quick-Filter Bar -->
-      <div class="catalog-currency-bar">
-        <div class="currency-bar-label">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="2" y1="12" x2="22" y2="12"/>
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-          </svg>
-          <span>Pricing & Currency:</span>
+      ${authService.isAdmin() ? `
+        <!-- Currency & Country Quick-Filter Bar (Admin Preview Only) -->
+        <div class="catalog-currency-bar">
+          <div class="currency-bar-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+            <span style="display: flex; align-items: center; gap: 0.4rem;">
+              <span>Pricing Inspector:</span>
+              <span class="badge badge-popular" style="font-size: 0.62rem; padding: 0.05rem 0.35rem;">Admin Preview</span>
+            </span>
+          </div>
+          <div class="currency-bar-options" id="catalog-currency-options">
+            <button type="button" class="currency-chip ${currentCountry === 'Pakistan' ? 'active' : ''}" data-country="Pakistan" title="View pricing in PKR">
+              <span>🇵🇰</span>
+              <span>Pakistan (PKR)</span>
+            </button>
+            <button type="button" class="currency-chip ${currentCountry === 'United States' ? 'active' : ''}" data-country="United States" title="View pricing in USD ($)">
+              <span>🇺🇸</span>
+              <span>USD ($)</span>
+            </button>
+            <button type="button" class="currency-chip ${currentCountry === 'India' ? 'active' : ''}" data-country="India" title="View pricing in INR (₹)">
+              <span>🇮🇳</span>
+              <span>India (INR ₹)</span>
+            </button>
+            <button type="button" class="currency-chip ${currentCountry === 'United Arab Emirates' ? 'active' : ''}" data-country="United Arab Emirates" title="View pricing in AED">
+              <span>🇦🇪</span>
+              <span>UAE (AED)</span>
+            </button>
+            <button type="button" class="currency-chip ${currentCountry === 'Saudi Arabia' ? 'active' : ''}" data-country="Saudi Arabia" title="View pricing in SAR">
+              <span>🇸🇦</span>
+              <span>Saudi (SAR)</span>
+            </button>
+            <button type="button" class="currency-chip ${currentCountry === 'Global' || currentCountry === 'Other' ? 'active' : ''}" data-country="Global" title="View Global pricing in USD ($)">
+              <span>🌐</span>
+              <span>Global ($)</span>
+            </button>
+          </div>
         </div>
-        <div class="currency-bar-options" id="catalog-currency-options">
-          <button type="button" class="currency-chip ${currentCountry === 'Pakistan' ? 'active' : ''}" data-country="Pakistan" title="View pricing in PKR">
-            <span>🇵🇰</span>
-            <span>Pakistan (PKR)</span>
-          </button>
-          <button type="button" class="currency-chip ${currentCountry === 'United States' ? 'active' : ''}" data-country="United States" title="View pricing in USD ($)">
-            <span>🇺🇸</span>
-            <span>USD ($)</span>
-          </button>
-          <button type="button" class="currency-chip ${currentCountry === 'India' ? 'active' : ''}" data-country="India" title="View pricing in INR (₹)">
-            <span>🇮🇳</span>
-            <span>India (INR ₹)</span>
-          </button>
-          <button type="button" class="currency-chip ${currentCountry === 'United Arab Emirates' ? 'active' : ''}" data-country="United Arab Emirates" title="View pricing in AED">
-            <span>🇦🇪</span>
-            <span>UAE (AED)</span>
-          </button>
-          <button type="button" class="currency-chip ${currentCountry === 'Global' || currentCountry === 'Other' ? 'active' : ''}" data-country="Global" title="View Global pricing in USD ($)">
-            <span>🌐</span>
-            <span>Global ($)</span>
-          </button>
-        </div>
-      </div>
+      ` : ''}
 
       <!-- Controls & Filter Bar -->
       <section class="marketplace-controls">
