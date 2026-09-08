@@ -41,11 +41,11 @@ export async function openSearchModal() {
         />
       </div>
 
-      <div id="modal-search-results" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 380px; overflow-y: auto;">
+      <div id="modal-search-results" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 50vh; overflow-y: auto;">
         ${renderResultItems(allTools.slice(0, 6))}
       </div>
 
-      <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted);">
+      <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); flex-wrap: wrap; gap: 0.5rem;">
         <span>Tip: Press <kbd class="kbd-shortcut">ESC</kbd> to exit</span>
         <span>${allTools.length} tools indexed</span>
       </div>
@@ -54,9 +54,13 @@ export async function openSearchModal() {
 
   modalRoot.appendChild(backdrop);
 
+  let handleKey;
   // Close logic
   const closeModal = () => {
     isModalOpen = false;
+    if (handleKey) {
+      window.removeEventListener('keydown', handleKey);
+    }
     backdrop.remove();
   };
 
@@ -67,24 +71,46 @@ export async function openSearchModal() {
   const input = document.getElementById('modal-search-input');
   const resultsContainer = document.getElementById('modal-search-results');
 
-  setTimeout(() => input.focus(), 50);
+  // Close modal when any search result is clicked
+  if (resultsContainer) {
+    resultsContainer.onclick = (e) => {
+      const link = e.target.closest('a');
+      if (link) {
+        closeModal();
+      }
+    };
+  }
 
-  input.oninput = (e) => {
-    const q = e.target.value.toLowerCase().trim();
-    const filtered = allTools.filter((t) => 
-      t.name.toLowerCase().includes(q) || 
-      t.category.toLowerCase().includes(q) ||
-      (t.shortDescription && t.shortDescription.toLowerCase().includes(q))
-    );
-    resultsContainer.innerHTML = filtered.length > 0
-      ? renderResultItems(filtered)
-      : `<div style="text-align: center; padding: 2rem; color: var(--text-muted);">No matching tools found for "${e.target.value}"</div>`;
-  };
+  setTimeout(() => input?.focus(), 50);
 
-  const handleKey = (e) => {
+  if (input) {
+    input.oninput = (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      const filtered = allTools.filter((t) => 
+        t.name.toLowerCase().includes(q) || 
+        t.category.toLowerCase().includes(q) ||
+        (t.shortDescription && t.shortDescription.toLowerCase().includes(q))
+      );
+      resultsContainer.innerHTML = filtered.length > 0
+        ? renderResultItems(filtered)
+        : `<div style="text-align: center; padding: 2rem; color: var(--text-muted);">No matching tools found for "${e.target.value}"</div>`;
+    };
+
+    // Press Enter to go to first result
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        const firstResult = resultsContainer?.querySelector('a');
+        if (firstResult) {
+          e.preventDefault();
+          firstResult.click();
+        }
+      }
+    };
+  }
+
+  handleKey = (e) => {
     if (e.key === 'Escape') {
       closeModal();
-      window.removeEventListener('keydown', handleKey);
     }
   };
   window.addEventListener('keydown', handleKey);
@@ -94,8 +120,7 @@ function renderResultItems(tools) {
   return tools.map((t) => `
     <a 
       href="#/tool/${t.id}" 
-      onclick="document.getElementById('search-modal-backdrop')?.remove();"
-      style="display: flex; align-items: center; gap: 0.85rem; padding: 0.65rem 0.85rem; border-radius: var(--radius-md); background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); text-decoration: none;"
+      style="display: flex; align-items: center; gap: 0.85rem; padding: 0.65rem 0.85rem; border-radius: var(--radius-md); background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); text-decoration: none; transition: background 150ms ease;"
     >
       <div style="width: 36px; height: 36px; border-radius: 8px; background: ${t.iconGradient || '#4f46e5'}; display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0;">
         ${getToolIconSvg(t.id, t.name)}

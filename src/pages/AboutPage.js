@@ -39,8 +39,8 @@ export async function renderAboutPage(root) {
       </div>
 
       <!-- Story & Quality Standards -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; margin-bottom: 5rem;">
-        <div class="glass-panel" style="padding: 2.25rem;">
+      <div class="about-story-grid" style="margin-bottom: 4rem;">
+        <div class="glass-panel about-story-card">
           <h3 style="font-size: 1.35rem; color: var(--text-pure); margin-bottom: 1rem;">Why We Built AI Tools Store</h3>
           <p style="color: var(--text-secondary); line-height: 1.7; font-size: 0.95rem; margin-bottom: 1rem;">
             Subscribing to dozens of separate AI platforms across multiple credit cards, regional billing restrictions, and convoluted dashboards is a massive hassle for creators and agencies.
@@ -50,7 +50,7 @@ export async function renderAboutPage(root) {
           </p>
         </div>
 
-        <div class="glass-panel" style="padding: 2.25rem;">
+        <div class="glass-panel about-story-card">
           <h3 style="font-size: 1.35rem; color: var(--text-pure); margin-bottom: 1rem;">Our 4-Point Curation Standard</h3>
           <ul style="list-style: none; display: flex; flex-direction: column; gap: 1rem; color: var(--text-secondary); font-size: 0.92rem;">
             <li style="display: flex; gap: 0.75rem; align-items: flex-start;">

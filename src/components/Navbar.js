@@ -536,10 +536,28 @@ export function attachNavbarEvents() {
   const mobileToggle = document.getElementById('mobile-menu-toggle');
   const drawer = document.getElementById('mobile-nav-drawer');
   if (mobileToggle && drawer) {
-    mobileToggle.onclick = () => {
+    mobileToggle.onclick = (e) => {
+      e.stopPropagation();
       const isVisible = drawer.style.display === 'block';
       drawer.style.display = isVisible ? 'none' : 'block';
+      mobileToggle.classList.toggle('active', !isVisible);
     };
+
+    // Auto-close drawer when any link inside drawer is clicked
+    drawer.querySelectorAll('a, button:not(#mobile-nav-country-btn):not(#mobile-nav-lang-btn)').forEach((item) => {
+      item.addEventListener('click', () => {
+        drawer.style.display = 'none';
+        mobileToggle.classList.remove('active');
+      });
+    });
+
+    // Close drawer when clicking outside
+    document.addEventListener('click', (e) => {
+      if (drawer.style.display === 'block' && !drawer.contains(e.target) && !mobileToggle.contains(e.target)) {
+        drawer.style.display = 'none';
+        mobileToggle.classList.remove('active');
+      }
+    });
   }
 
   // Bind initial auth slot events

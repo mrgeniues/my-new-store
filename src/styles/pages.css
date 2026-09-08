@@ -790,6 +790,14 @@
   }
 }
 
+@media (max-width: 480px) {
+  .about-stats-strip {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+  }
+}
+
 .about-stat-box {
   background: var(--bg-card);
   border: 1px solid var(--border-glass);
@@ -809,6 +817,29 @@
   font-size: 0.85rem;
   color: var(--text-muted);
   margin-top: 0.25rem;
+}
+
+.about-story-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2.5rem;
+}
+
+@media (max-width: 800px) {
+  .about-story-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+}
+
+.about-story-card {
+  padding: 2.25rem;
+}
+
+@media (max-width: 520px) {
+  .about-story-card {
+    padding: 1.5rem 1.2rem;
+  }
 }
 
 /* Contact Page Layout */
@@ -919,9 +950,22 @@
   margin-bottom: 2.5rem;
 }
 
-@media (max-width: 800px) {
-  .kpi-row {
+.kpi-row.kpi-grid-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 1040px) {
+  .kpi-row.kpi-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 700px) {
+  .kpi-row,
+  .kpi-row.kpi-grid-4 {
     grid-template-columns: 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
   }
 }
 

@@ -570,7 +570,7 @@ export async function renderAdminDashboardPage(root) {
 
       <!-- TAB 3: STORE ANALYTICS & KPIS -->
       <div id="tab-content-analytics" style="${activeTab === 'analytics' ? 'display: block;' : 'display: none;'}">
-        <div class="kpi-row" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="kpi-row kpi-grid-4">
           <div class="kpi-card">
             <div class="kpi-info">
               <h4>Total Catalog</h4>
