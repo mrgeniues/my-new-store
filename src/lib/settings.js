@@ -1,21 +1,31 @@
 // AI Tools Store - Global App Settings Service (n8n Webhook, MCP & WhatsApp)
 import { defaultWhatsappUrl } from './supabase.js';
+import { mcpClient } from './mcpClient.js';
 
 export const APP_SETTINGS_KEY = 'ai_tools_app_settings_v1';
+export const DEFAULT_MCP_TEST_URL = 'https://n8n-1rsy.srv1898856.hstgr.cloud/mcp-test/69318bf8-f20c-4dab-91cf-604c84ce94b1';
 
 export function getAppSettings() {
   try {
     const raw = localStorage.getItem(APP_SETTINGS_KEY);
     const parsed = raw ? JSON.parse(raw) : {};
-    return {
-      mcpWebhookUrl: parsed.mcpWebhookUrl || '',
+    const settings = {
+      mcpWebhookUrl: parsed.mcpWebhookUrl || DEFAULT_MCP_TEST_URL,
+      mcpUrlType: parsed.mcpUrlType || (parsed.mcpWebhookUrl?.includes('mcp-test') ? 'test' : 'production'),
       mcpSecretKey: parsed.mcpSecretKey || '',
       adminWhatsappNumber: parsed.adminWhatsappNumber || '',
       adminWhatsappUrl: parsed.adminWhatsappUrl || defaultWhatsappUrl || ''
     };
+
+    // Synchronize global mcpClient
+    mcpClient.setServerUrl(settings.mcpWebhookUrl);
+    mcpClient.setSecretKey(settings.mcpSecretKey);
+
+    return settings;
   } catch (e) {
     return {
-      mcpWebhookUrl: '',
+      mcpWebhookUrl: DEFAULT_MCP_TEST_URL,
+      mcpUrlType: 'test',
       mcpSecretKey: '',
       adminWhatsappNumber: '',
       adminWhatsappUrl: defaultWhatsappUrl || ''
@@ -28,51 +38,17 @@ export function saveAppSettings(newSettings) {
   const merged = { ...current, ...newSettings };
   try {
     localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(merged));
+    // Synchronize global mcpClient
+    mcpClient.setServerUrl(merged.mcpWebhookUrl);
+    mcpClient.setSecretKey(merged.mcpSecretKey);
   } catch (e) {
     console.warn('[Settings] Failed to save settings to localStorage:', e);
   }
   return merged;
 }
 
-// Send test ping to n8n / MCP endpoint
+// Delegate test to proper McpClient
 export async function testMcpWebhook(url, secret = '') {
-  if (!url || !url.trim().startsWith('http')) {
-    throw new Error('Please enter a valid Webhook URL (starts with https:// or http://)');
-  }
-
-  const headers = { 'Content-Type': 'application/json' };
-  if (secret && secret.trim()) {
-    headers['Authorization'] = `Bearer ${secret.trim()}`;
-    headers['X-MCP-Secret'] = secret.trim();
-  }
-
-  const payload = {
-    event: 'mcp_test_ping',
-    source: 'AI Tools Store Admin Panel',
-    full_name: 'Admin Test Ping',
-    email: 'admin@aitoolsstore.com',
-    whatsapp_number: '+92 300 0000000',
-    topic: 'License Activation (Test)',
-    message: 'This is a test event dispatched from AI Tools Store Admin Panel to verify your n8n / MCP workflow.',
-    timestamp: new Date().toISOString()
-  };
-
-  try {
-    const response = await fetch(url.trim(), {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      throw new Error(`Webhook responded with HTTP status ${response.status} (${response.statusText || 'Error'})`);
-    }
-
-    return true;
-  } catch (err) {
-    if (err.message && (err.message.includes('Failed to fetch') || err.name === 'TypeError')) {
-      throw new Error('Could not reach n8n server. Please verify: 1) Is the URL complete (e.g. https://.../webhook/...)? 2) If using Test URL, make sure you clicked "Listen for test event" in n8n.');
-    }
-    throw err;
-  }
+  return await mcpClient.testConnection(url, secret);
 }
+

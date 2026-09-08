@@ -4,6 +4,7 @@ import { renderFooter } from '../components/Footer.js';
 import { showToast } from '../utils/helpers.js';
 import { supabase, isSupabaseConfigured, defaultWhatsappUrl } from '../lib/supabase.js';
 import { getAppSettings } from '../lib/settings.js';
+import { mcpClient } from '../lib/mcpClient.js';
 
 export async function renderContactPage(root) {
   document.title = 'Contact & Support | AI Tools Store';
@@ -325,35 +326,20 @@ export async function renderContactPage(root) {
           }
         }
 
-        // 2. Dispatch query directly to n8n / MCP Webhook if configured by admin
+        // 2. Dispatch query directly to n8n MCP Server Trigger via MCP Client
         const settings = getAppSettings();
         if (settings.mcpWebhookUrl && settings.mcpWebhookUrl.trim().startsWith('http')) {
-          try {
-            const headers = { 'Content-Type': 'application/json' };
-            if (settings.mcpSecretKey) {
-              headers['Authorization'] = `Bearer ${settings.mcpSecretKey.trim()}`;
-              headers['X-MCP-Secret'] = settings.mcpSecretKey.trim();
-            }
-
-            fetch(settings.mcpWebhookUrl.trim(), {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({
-                event: 'contact_form_submission',
-                source: 'AI Tools Store Contact Page',
-                full_name: name,
-                email: email,
-                whatsapp_number: whatsapp,
-                topic: subject,
-                message: message,
-                submitted_at: new Date().toISOString()
-              })
-            }).catch((whErr) => {
-              console.warn('[ContactPage] n8n / MCP webhook dispatch warning:', whErr);
-            });
-          } catch (mcpErr) {
-            console.warn('[ContactPage] MCP Webhook call notice:', mcpErr);
-          }
+          mcpClient.setServerUrl(settings.mcpWebhookUrl);
+          mcpClient.setSecretKey(settings.mcpSecretKey || '');
+          mcpClient.submitInquiry({
+            full_name: name,
+            email: email,
+            whatsapp_number: whatsapp,
+            topic: subject,
+            message: message
+          }).catch((mcpErr) => {
+            console.warn('[ContactPage] MCP inquiry submission notice:', mcpErr.message);
+          });
         }
 
         showToast(`Thank you, ${name}! Your message has been received. Our team will contact you shortly.`, 'success');

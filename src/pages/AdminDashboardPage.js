@@ -5,7 +5,8 @@ import { toolsApi } from '../api/toolsApi.js';
 import { renderNavbar, attachNavbarEvents } from '../components/Navbar.js';
 import { renderFooter } from '../components/Footer.js';
 import { showToast, getCountryFlag, getToolLocalizedPrice } from '../utils/helpers.js';
-import { getAppSettings, saveAppSettings, testMcpWebhook } from '../lib/settings.js';
+import { getAppSettings, saveAppSettings, testMcpWebhook, DEFAULT_MCP_TEST_URL } from '../lib/settings.js';
+import { mcpClient } from '../lib/mcpClient.js';
 
 let activeTab = 'tools'; // 'tools' | 'users' | 'analytics' | 'settings'
 let adminPricingCountry = 'Pakistan';
@@ -658,34 +659,60 @@ export async function renderAdminDashboardPage(root) {
 
       <!-- TAB 4: STORE, MCP & WHATSAPP SETTINGS -->
       <div id="tab-content-settings" style="${activeTab === 'settings' ? 'display: block;' : 'display: none;'}">
-        <!-- Card 1: n8n & MCP Automation Webhook (Large, Prominent & High-Contrast) -->
-        <div class="admin-table-card" style="max-width: 920px; margin-bottom: 2.25rem; background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.08), rgba(15, 23, 42, 0.95)); border: 2px solid rgba(99, 102, 241, 0.35); border-radius: 18px; padding: 2rem; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);">
+        <!-- Card 1: n8n MCP Server Trigger Integration (Model Context Protocol) -->
+        <div class="admin-table-card" style="max-width: 920px; margin-bottom: 2.25rem; background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.12), rgba(15, 23, 42, 0.96)); border: 2px solid rgba(99, 102, 241, 0.4); border-radius: 18px; padding: 2.25rem; box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5);">
           
           <!-- Header -->
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem;">
             <div style="display: flex; align-items: center; gap: 1rem;">
-              <div style="width: 52px; height: 52px; border-radius: 14px; background: linear-gradient(135deg, rgba(234, 88, 12, 0.25), rgba(99, 102, 241, 0.3)); border: 1.5px solid rgba(234, 88, 12, 0.5); display: flex; align-items: center; justify-content: center; font-size: 1.6rem; box-shadow: 0 0 20px rgba(234, 88, 12, 0.2);">
+              <div style="width: 54px; height: 54px; border-radius: 14px; background: linear-gradient(135deg, rgba(234, 88, 12, 0.3), rgba(99, 102, 241, 0.35)); border: 1.5px solid rgba(234, 88, 12, 0.6); display: flex; align-items: center; justify-content: center; font-size: 1.75rem; box-shadow: 0 0 24px rgba(234, 88, 12, 0.25);">
                 ⚡
               </div>
               <div>
                 <h3 style="font-size: 1.35rem; color: #ffffff; font-weight: 800; margin: 0; letter-spacing: -0.01em;">
-                  n8n &amp; MCP (Model Context Protocol) Automation Link
+                  n8n MCP (Model Context Protocol) Server Trigger
                 </h3>
                 <p style="font-size: 0.88rem; color: #94a3b8; margin: 0.3rem 0 0 0;">
-                  Customer queries, lead inquiries, and order messages are forwarded directly to your n8n workflow or AI Agent.
+                  Native Model Context Protocol integration via Server-Sent Events (SSE) and JSON-RPC 2.0.
                 </p>
               </div>
             </div>
             <span class="badge" style="background: rgba(99, 102, 241, 0.25); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.5); font-size: 0.82rem; font-weight: 700; padding: 0.4rem 0.85rem; border-radius: 999px;">
-              ⚡ Live Webhook Integration
+              ⚡ MCP Protocol Transport
             </span>
           </div>
 
-          <!-- The Large & Clear Link Input Container -->
+          <!-- Environment Mode Switcher: Test vs Production URL -->
+          <div style="margin-bottom: 1.5rem; padding: 0.85rem 1.25rem; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.85rem;">
+            <div>
+              <div style="font-size: 0.85rem; font-weight: 700; color: #f8fafc;">Select Active MCP URL Environment:</div>
+              <div style="font-size: 0.78rem; color: #94a3b8;">Switch between your active n8n Development (Test) URL and Live Production URL.</div>
+            </div>
+            <div style="display: flex; gap: 0.5rem;" id="mcp-env-switch-group">
+              <button 
+                id="btn-switch-test-url" 
+                type="button" 
+                class="admin-tab-btn ${appSettings.mcpUrlType !== 'production' ? 'active' : ''}"
+                style="padding: 0.45rem 1rem; font-size: 0.82rem; font-weight: 700;"
+              >
+                🧪 Development / Test URL
+              </button>
+              <button 
+                id="btn-switch-prod-url" 
+                type="button" 
+                class="admin-tab-btn ${appSettings.mcpUrlType === 'production' ? 'active' : ''}"
+                style="padding: 0.45rem 1rem; font-size: 0.82rem; font-weight: 700;"
+              >
+                🚀 Production MCP URL
+              </button>
+            </div>
+          </div>
+
+          <!-- MCP Endpoint URL Input Container -->
           <div style="margin-bottom: 1.75rem;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.65rem; flex-wrap: wrap; gap: 0.5rem;">
               <label style="font-size: 1.05rem; font-weight: 800; color: #f8fafc; display: flex; align-items: center; gap: 0.5rem; margin: 0;">
-                <span style="color: #38bdf8;">🔗</span> n8n Webhook / MCP Endpoint Link (Add Your Full Link Here):
+                <span style="color: #38bdf8;">🔗</span> n8n MCP Server Trigger Endpoint URL:
               </label>
               <div style="display: flex; gap: 0.5rem;">
                 <button 
@@ -695,6 +722,14 @@ export async function renderAdminDashboardPage(root) {
                   title="Clipboard se link paste karein"
                 >
                   📋 Paste Link
+                </button>
+                <button 
+                  id="btn-reset-test-url" 
+                  type="button" 
+                  style="background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.4); color: #a5b4fc; font-size: 0.82rem; font-weight: 600; padding: 0.35rem 0.75rem; border-radius: 8px; cursor: pointer; transition: all 0.2s;"
+                  title="Reset to Active Development Test URL"
+                >
+                  🔄 Reset Test URL
                 </button>
                 <button 
                   id="btn-clear-mcp-url" 
@@ -712,8 +747,8 @@ export async function renderAdminDashboardPage(root) {
               <input 
                 type="url" 
                 id="settings-mcp-webhook-url" 
-                value="${appSettings.mcpWebhookUrl || ''}" 
-                placeholder="https://n8n.yourdomain.com/webhook/contact-inquiries"
+                value="${appSettings.mcpWebhookUrl || DEFAULT_MCP_TEST_URL}" 
+                placeholder="https://n8n-1rsy.srv1898856.hstgr.cloud/mcp-test/69318bf8-f20c-4dab-91cf-604c84ce94b1"
                 style="width: 100% !important; min-height: 58px !important; font-size: 1.05rem !important; font-family: 'JetBrains Mono', monospace !important; padding: 0.95rem 1.25rem 0.95rem 3.2rem !important; background: #070d18 !important; border: 2px solid #6366f1 !important; border-radius: 12px !important; color: #38bdf8 !important; box-shadow: 0 0 25px rgba(99, 102, 241, 0.22) !important; outline: none !important; box-sizing: border-box !important; display: block !important;"
               />
               <span style="position: absolute; left: 1.1rem; top: 50%; transform: translateY(-50%); font-size: 1.35rem; color: #818cf8; pointer-events: none;">
@@ -721,47 +756,51 @@ export async function renderAdminDashboardPage(root) {
               </span>
             </div>
 
-            <!-- Clear Example & Instructions Card -->
+            <!-- Architecture & Protocol note -->
             <div style="margin-top: 0.85rem; padding: 0.9rem 1.25rem; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 12px; border-left: 4px solid #38bdf8;">
               <div style="font-size: 0.85rem; font-weight: 700; color: #38bdf8; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.4rem;">
-                💡 Sahi n8n Webhook Link Ki Example (Format Check):
+                💡 MCP Transport Specification (How it connects):
               </div>
-              <code style="display: block; padding: 0.5rem 0.85rem; background: #070d18; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: #7dd3fc; font-family: 'JetBrains Mono', monospace; font-size: 0.88rem; word-break: break-all; margin: 0.3rem 0;">
-                https://n8n-1rsy.srv1898856.hstgr.cloud/webhook/contact-inquiry
-              </code>
-              <p style="font-size: 0.8rem; color: #94a3b8; margin: 0.35rem 0 0 0; line-height: 1.45;">
-                ⚠️ <strong>Aham Note:</strong> URL poora hona zaroori hai (host/domain aur <code>/webhook/...</code> path samait). Agar URL adhoora hoga to browser <em>"Failed to fetch"</em> error dikhaye ga.
+              <p style="font-size: 0.82rem; color: #cbd5e1; margin: 0.25rem 0; line-height: 1.5;">
+                This endpoint connects via the official <strong>Model Context Protocol (MCP)</strong>. It establishes an SSE stream using <code style="color: #7dd3fc;">Accept: application/json, text/event-stream</code> and initializes via JSON-RPC 2.0.
+              </p>
+              <p style="font-size: 0.78rem; color: #94a3b8; margin: 0.3rem 0 0 0;">
+                ⚠️ <strong>For Test URL:</strong> Click the orange <strong>"Execute step"</strong> button in n8n before testing so n8n is actively listening. For Production, switch to <strong>Production URL</strong> and activate the workflow.
               </p>
             </div>
           </div>
 
-          <!-- Secret Token / Key (Optional) -->
+          <!-- Secret Token / Key (Optional - Secure Server Proxy) -->
           <div style="margin-bottom: 1.75rem;">
             <label style="font-size: 0.95rem; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-              🛡️ MCP Secret Token / Header Key <span style="font-size: 0.8rem; font-weight: 400; color: #94a3b8;">(Optional - agar n8n webhook authentication rakhi ho)</span>:
+              🛡️ MCP Secret Token / Header Key <span style="font-size: 0.8rem; font-weight: 400; color: #94a3b8;">(Optional - Transmitted securely via server proxy headers; never exposed)</span>:
             </label>
             <input 
-              type="text" 
+              type="password" 
               id="settings-mcp-secret" 
               value="${appSettings.mcpSecretKey || ''}" 
-              placeholder="e.g. your_bearer_token_or_secret_header"
+              placeholder="e.g. bearer_token_or_secret_header (Leave blank if Authentication is None)"
               style="width: 100% !important; min-height: 50px !important; font-size: 0.95rem !important; font-family: 'JetBrains Mono', monospace !important; padding: 0.85rem 1.25rem !important; background: #070d18 !important; border: 1.5px solid rgba(255, 255, 255, 0.15) !important; border-radius: 10px !important; color: #e2e8f0 !important; box-sizing: border-box !important; display: block !important;"
             />
-            <p style="font-size: 0.76rem; color: #94a3b8; margin-top: 0.35rem;">
-              Yeh secret key HTTP headers mein <code style="color: #38bdf8;">Authorization: Bearer &lt;key&gt;</code> aur <code style="color: #38bdf8;">X-MCP-Secret</code> ban kar bhej di jaye gi.
-            </p>
           </div>
 
-          <!-- Ping Test Row -->
-          <div style="display: flex; gap: 1rem; align-items: center; padding-top: 1.25rem; border-top: 1px solid rgba(255, 255, 255, 0.1); flex-wrap: wrap;">
-            <button 
-              id="btn-test-mcp-ping" 
-              type="button" 
-              style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #ffffff; font-size: 0.92rem; font-weight: 800; padding: 0.75rem 1.6rem; border-radius: 10px; border: none; cursor: pointer; box-shadow: 0 4px 18px rgba(99, 102, 241, 0.4); display: flex; align-items: center; gap: 0.5rem; transition: transform 0.15s;"
-            >
-              ⚡ Test n8n / MCP Ping
-            </button>
-            <div id="mcp-ping-status" style="font-size: 0.88rem; font-weight: 600; color: #94a3b8; max-width: 580px;"></div>
+          <!-- Test Action & Diagnostics Panel -->
+          <div style="padding-top: 1.25rem; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+            <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem;">
+              <button 
+                id="btn-test-mcp-connection" 
+                type="button" 
+                style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #ffffff; font-size: 0.95rem; font-weight: 800; padding: 0.85rem 1.8rem; border-radius: 10px; border: none; cursor: pointer; box-shadow: 0 4px 20px rgba(99, 102, 241, 0.45); display: flex; align-items: center; gap: 0.6rem; transition: transform 0.15s;"
+              >
+                ⚡ Test MCP Connection
+              </button>
+              <div id="mcp-ping-status" style="font-size: 0.9rem; font-weight: 600; color: #94a3b8;"></div>
+            </div>
+
+            <!-- Diagnostics Result Panel (Shows: Connected, Connection failed, HTTP status, Error message) -->
+            <div id="mcp-diagnostics-panel" style="display: none; margin-top: 1rem; padding: 1.25rem; background: #070d18; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 12px;">
+              <!-- Dynamically populated by MCP test listener -->
+            </div>
           </div>
         </div>
 
@@ -1036,15 +1075,56 @@ export async function renderAdminDashboardPage(root) {
     }
   });
 
-  // Paste & Clear Buttons for n8n Webhook URL
+  // MCP Environment Switchers (Test URL vs Production URL)
+  const mcpUrlInput = document.getElementById('settings-mcp-webhook-url');
+  const btnSwitchTest = document.getElementById('btn-switch-test-url');
+  const btnSwitchProd = document.getElementById('btn-switch-prod-url');
+  const btnResetTest = document.getElementById('btn-reset-test-url');
+
+  btnSwitchTest?.addEventListener('click', () => {
+    btnSwitchTest.classList.add('active');
+    btnSwitchProd?.classList.remove('active');
+    if (mcpUrlInput) {
+      if (!mcpUrlInput.value || mcpUrlInput.value.includes('/mcp/')) {
+        mcpUrlInput.value = DEFAULT_MCP_TEST_URL;
+      }
+      mcpUrlInput.focus();
+    }
+    showToast('Switched to n8n MCP Development / Test URL mode', 'info');
+  });
+
+  btnSwitchProd?.addEventListener('click', () => {
+    btnSwitchProd.classList.add('active');
+    btnSwitchTest?.classList.remove('active');
+    if (mcpUrlInput) {
+      if (mcpUrlInput.value.includes('/mcp-test/')) {
+        mcpUrlInput.value = mcpUrlInput.value.replace('/mcp-test/', '/mcp/');
+      } else if (!mcpUrlInput.value) {
+        mcpUrlInput.value = DEFAULT_MCP_TEST_URL.replace('/mcp-test/', '/mcp/');
+      }
+      mcpUrlInput.focus();
+    }
+    showToast('Switched to n8n MCP Live Production URL mode', 'info');
+  });
+
+  btnResetTest?.addEventListener('click', () => {
+    if (mcpUrlInput) {
+      mcpUrlInput.value = DEFAULT_MCP_TEST_URL;
+      mcpUrlInput.focus();
+    }
+    btnSwitchTest?.classList.add('active');
+    btnSwitchProd?.classList.remove('active');
+    showToast('Active Test MCP URL restored.', 'success');
+  });
+
+  // Paste & Clear Buttons for n8n MCP URL
   document.getElementById('btn-paste-mcp-url')?.addEventListener('click', async () => {
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
-        const input = document.getElementById('settings-mcp-webhook-url');
-        if (input) {
-          input.value = text.trim();
-          input.focus();
+        if (mcpUrlInput) {
+          mcpUrlInput.value = text.trim();
+          mcpUrlInput.focus();
           showToast('✓ Link clipboard se paste ho gaya!', 'success');
         }
       } else {
@@ -1056,25 +1136,24 @@ export async function renderAdminDashboardPage(root) {
   });
 
   document.getElementById('btn-clear-mcp-url')?.addEventListener('click', () => {
-    const input = document.getElementById('settings-mcp-webhook-url');
-    if (input) {
-      input.value = '';
-      input.focus();
+    if (mcpUrlInput) {
+      mcpUrlInput.value = '';
+      mcpUrlInput.focus();
       showToast('Link clear ho gaya.', 'info');
     }
   });
 
-  // Test n8n / MCP Webhook Ping Button
-  document.getElementById('btn-test-mcp-ping')?.addEventListener('click', async () => {
-    const urlInput = document.getElementById('settings-mcp-webhook-url');
+  // Test MCP Connection Button (Handles Diagnostics Display)
+  const handleMcpConnectionTest = async () => {
     const secretInput = document.getElementById('settings-mcp-secret');
     const statusEl = document.getElementById('mcp-ping-status');
+    const diagPanel = document.getElementById('mcp-diagnostics-panel');
 
-    const url = urlInput?.value?.trim() || '';
+    const url = mcpUrlInput?.value?.trim() || '';
     const secret = secretInput?.value?.trim() || '';
 
     if (!url) {
-      showToast('Please enter an n8n / MCP Webhook URL first.', 'error');
+      showToast('Please enter an n8n MCP URL first.', 'error');
       if (statusEl) {
         statusEl.textContent = 'URL required';
         statusEl.style.color = '#f87171';
@@ -1083,25 +1162,103 @@ export async function renderAdminDashboardPage(root) {
     }
 
     if (statusEl) {
-      statusEl.textContent = 'Dispatching test payload to n8n / MCP...';
+      statusEl.textContent = 'Connecting to n8n MCP Server via SSE + JSON-RPC...';
       statusEl.style.color = 'var(--accent-cyan)';
     }
 
+    if (diagPanel) {
+      diagPanel.style.display = 'block';
+      diagPanel.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 0.75rem; color: var(--accent-cyan);">
+          <span class="status-dot-pulse" style="background: var(--accent-cyan);"></span>
+          <span style="font-size: 0.9rem; font-weight: 600;">Initiating Model Context Protocol handshake...</span>
+        </div>
+      `;
+    }
+
     try {
-      await testMcpWebhook(url, secret);
+      const res = await mcpClient.testConnection(url, secret);
+
+      const isConnected = Boolean(res.connected);
+      const httpStatus = res.status || 0;
+      const statusText = res.statusText || (isConnected ? 'OK' : 'Failed');
+      const latency = res.latencyMs ? `${res.latencyMs}ms` : '—';
+      const protocol = res.protocol || 'MCP/1.0 (SSE + JSON-RPC 2.0)';
+      const errorMsg = res.error || '';
+      const successMsg = res.message || 'Connected successfully to n8n MCP Server Trigger!';
+
       if (statusEl) {
-        statusEl.textContent = '✓ Webhook responded 200 OK! Payload successfully delivered to n8n.';
-        statusEl.style.color = '#34d399';
+        statusEl.textContent = isConnected ? '✓ MCP Connected!' : '✕ Connection failed';
+        statusEl.style.color = isConnected ? '#34d399' : '#f87171';
       }
-      showToast('n8n / MCP Webhook ping successful!', 'success');
+
+      if (diagPanel) {
+        diagPanel.style.display = 'block';
+        diagPanel.innerHTML = `
+          <div style="display: flex; flex-direction: column; gap: 1rem;">
+            <!-- Top Status Row -->
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.85rem;">
+              <div style="display: flex; align-items: center; gap: 0.65rem;">
+                <span class="status-dot-pulse" style="background: ${isConnected ? '#34d399' : '#f87171'}; width: 10px; height: 10px;"></span>
+                <span style="font-size: 1.05rem; font-weight: 800; color: ${isConnected ? '#34d399' : '#f87171'};">
+                  ${isConnected ? 'Connected' : 'Connection failed'}
+                </span>
+              </div>
+              <div style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;">
+                <span class="badge" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: #f8fafc; font-family: monospace; font-size: 0.82rem;">
+                  HTTP Status: ${httpStatus} ${statusText}
+                </span>
+                <span class="badge" style="background: rgba(56, 189, 248, 0.12); color: #38bdf8; font-size: 0.8rem;">
+                  Latency: ${latency}
+                </span>
+                <span class="badge" style="background: rgba(99, 102, 241, 0.15); color: #a5b4fc; font-size: 0.8rem;">
+                  ${protocol}
+                </span>
+              </div>
+            </div>
+
+            <!-- Detailed Message Box -->
+            <div style="padding: 0.85rem 1rem; border-radius: 8px; background: ${isConnected ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)'}; border: 1px solid ${isConnected ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'};">
+              <div style="font-size: 0.88rem; font-weight: 700; color: ${isConnected ? '#34d399' : '#f87171'}; margin-bottom: 0.25rem;">
+                ${isConnected ? 'MCP Handshake Verified' : 'Error Message / Diagnostics:'}
+              </div>
+              <p style="font-size: 0.84rem; color: #cbd5e1; margin: 0; line-height: 1.5;">
+                ${isConnected ? successMsg : errorMsg}
+              </p>
+            </div>
+
+            ${!isConnected && url.includes('mcp-test') ? `
+              <div style="font-size: 0.8rem; color: #94a3b8; line-height: 1.45;">
+                👉 <strong>How to resolve:</strong> Make sure your n8n workflow tab is open, click the orange <strong>"Execute step"</strong> button on the MCP Server Trigger node, and then click <strong>"Test MCP Connection"</strong> again within 120 seconds.
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+
+      showToast(isConnected ? 'MCP Server connection verified!' : `MCP connection: ${statusText}`, isConnected ? 'success' : 'error');
     } catch (err) {
       if (statusEl) {
-        statusEl.textContent = `Error: ${err.message}`;
+        statusEl.textContent = `Connection failed: ${err.message}`;
         statusEl.style.color = '#f87171';
       }
-      showToast(`Webhook ping failed: ${err.message}`, 'error');
+      if (diagPanel) {
+        diagPanel.style.display = 'block';
+        diagPanel.innerHTML = `
+          <div style="color: #f87171; font-weight: 700; font-size: 0.9rem;">
+            ✕ Connection failed (HTTP Status: 0 Network Error)
+          </div>
+          <p style="color: #cbd5e1; font-size: 0.82rem; margin: 0.4rem 0 0 0;">
+            ${err.message}
+          </p>
+        `;
+      }
+      showToast(`MCP connection failed: ${err.message}`, 'error');
     }
-  });
+  };
+
+  document.getElementById('btn-test-mcp-connection')?.addEventListener('click', handleMcpConnectionTest);
+  document.getElementById('btn-test-mcp-ping')?.addEventListener('click', handleMcpConnectionTest);
 
   // Save All Settings Button
   document.getElementById('btn-save-all-settings')?.addEventListener('click', () => {

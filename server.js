@@ -19,6 +19,11 @@ app.use((req, res, next) => {
   next();
 });
 
+import { testMcpConnection, callMcpTool } from './mcpProxy.js';
+
+// Body Parser Middleware for API endpoints
+app.use(express.json());
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
@@ -35,8 +40,38 @@ app.get('/api/config', (req, res) => {
     VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL || 'https://rqemoitjanmxsmcmveso.supabase.co',
     VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxZW1vaXRqYW5teHNtY212ZXNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1Mjc1NjAsImV4cCI6MjEwNDEwMzU2MH0.GntFd-uwBQTg7RiN_ePtX2q3l1fnCF8n_KmvKes9oYk',
     VITE_DEFAULT_WHATSAPP_URL: process.env.VITE_DEFAULT_WHATSAPP_URL || 'https://whatsapp.com/channel/0029Vb5pEK34tRrkKVuBCy0Q',
-    VITE_ADMIN_EMAILS: process.env.VITE_ADMIN_EMAILS || 'admin@aitools.store,numanali1n@gmail.com'
+    VITE_ADMIN_EMAILS: process.env.VITE_ADMIN_EMAILS || 'admin@aitools.store,numanali1n@gmail.com',
+    DEFAULT_MCP_URL: process.env.MCP_SERVER_URL || 'https://n8n-1rsy.srv1898856.hstgr.cloud/mcp-test/69318bf8-f20c-4dab-91cf-604c84ce94b1'
   });
+});
+
+// Model Context Protocol (MCP) Proxy Endpoints
+app.post('/api/mcp/test', async (req, res) => {
+  try {
+    const { targetUrl, secret } = req.body || {};
+    const result = await testMcpConnection({ targetUrl, secret });
+    res.status(result.connected ? 200 : (result.status || 500)).json(result);
+  } catch (err) {
+    res.status(500).json({
+      connected: false,
+      status: 500,
+      statusText: 'Internal Error',
+      error: err.message
+    });
+  }
+});
+
+app.post('/api/mcp/call-tool', async (req, res) => {
+  try {
+    const { targetUrl, secret, toolName, args } = req.body || {};
+    const result = await callMcpTool({ targetUrl, secret, toolName, args });
+    res.json({ success: true, result });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
 });
 
 // Check if production build (dist/) exists
