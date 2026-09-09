@@ -166,14 +166,23 @@ export class McpClient {
   }
 
   /**
-   * Submits a customer inquiry to n8n MCP Server Trigger via JSON-RPC 2.0 tool call
+   * Submits customer inquiry to n8n Webhook / MCP Server Trigger
+   * Sends ONLY user details (name, email, whatsapp, topic, message) without any metadata
    */
   async submitInquiry(inquiryData) {
     if (!this.serverUrl) {
-      throw new Error('No MCP Server URL configured.');
+      throw new Error('No n8n Webhook / MCP URL configured.');
     }
 
-    // Call through proxy
+    const cleanUserData = {
+      name: inquiryData.name || inquiryData.full_name || '',
+      email: inquiryData.email || '',
+      whatsapp: inquiryData.whatsapp || inquiryData.whatsapp_number || '',
+      topic: inquiryData.topic || inquiryData.subject || '',
+      message: inquiryData.message || ''
+    };
+
+    // 1. Call through backend proxy (/api/mcp/call-tool)
     try {
       const res = await fetch('/api/mcp/call-tool', {
         method: 'POST',
@@ -182,48 +191,50 @@ export class McpClient {
           targetUrl: this.serverUrl,
           secret: this.secretKey,
           toolName: 'submit_customer_inquiry',
-          args: inquiryData
+          args: cleanUserData
         })
       });
 
-      if (!res.ok) {
-        throw new Error(`MCP Proxy returned HTTP ${res.status}`);
+      if (res.ok) {
+        return await res.json();
       }
-
-      return await res.json();
+      console.warn('[McpClient] Proxy returned HTTP ' + res.status + ', attempting direct POST...');
     } catch (proxyErr) {
-      console.warn('[McpClient] Proxy call failed, attempting direct JSON-RPC POST...', proxyErr);
+      console.warn('[McpClient] Proxy call failed, attempting direct POST...', proxyErr);
+    }
 
-      // Direct fallback
-      const rpcPayload = {
-        jsonrpc: '2.0',
-        id: `mcp-${Date.now()}`,
-        method: 'tools/call',
-        params: {
-          name: 'submit_customer_inquiry',
-          arguments: {
-            ...inquiryData,
-            source: 'AI Tools Store Contact Page',
-            submitted_at: new Date().toISOString()
+    // 2. Direct browser fetch fallback
+    const isMcpProtocol = this.serverUrl.includes('/mcp-test') || this.serverUrl.includes('/mcp/');
+    const payload = isMcpProtocol
+      ? {
+          jsonrpc: '2.0',
+          id: `mcp-${Date.now()}`,
+          method: 'tools/call',
+          params: {
+            name: 'submit_customer_inquiry',
+            arguments: cleanUserData
           }
         }
-      };
+      : cleanUserData;
 
-      const response = await fetch(this.serverUrl, {
-        method: 'POST',
-        headers: {
-          'Accept': MCP_HEADERS.ACCEPT,
-          'Content-Type': MCP_HEADERS.CONTENT_TYPE,
-          ...(this.secretKey ? { 'Authorization': `Bearer ${this.secretKey}`, 'X-MCP-Secret': this.secretKey } : {})
-        },
-        body: JSON.stringify(rpcPayload)
-      });
+    const response = await fetch(this.serverUrl, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json, text/event-stream',
+        'Content-Type': 'application/json',
+        ...(this.secretKey ? { 'Authorization': `Bearer ${this.secretKey}`, 'X-MCP-Secret': this.secretKey } : {})
+      },
+      body: JSON.stringify(payload)
+    });
 
-      if (!response.ok) {
-        throw new Error(`Direct MCP call failed with HTTP ${response.status} (${response.statusText})`);
-      }
+    if (!response.ok) {
+      throw new Error(`Direct POST failed with HTTP ${response.status} (${response.statusText})`);
+    }
 
+    try {
       return await response.json();
+    } catch {
+      return { status: response.status, ok: true };
     }
   }
 }

@@ -158,7 +158,8 @@ export async function testMcpConnection({ targetUrl, secret = '' }) {
 }
 
 /**
- * Executes an MCP tool call (JSON-RPC 2.0 format) to forward customer inquiries
+ * Executes an inquiry submission to n8n (via direct JSON Webhook or MCP JSON-RPC 2.0 tool call)
+ * Sends ONLY user details (name, email, whatsapp, topic, message) without any metadata or wrappers.
  */
 export async function callMcpTool({ targetUrl, secret = '', toolName = 'submit_inquiry', args = {} }) {
   if (!targetUrl || !targetUrl.trim().startsWith('http')) {
@@ -176,35 +177,45 @@ export async function callMcpTool({ targetUrl, secret = '', toolName = 'submit_i
     requestHeaders['X-MCP-Secret'] = secret.trim();
   }
 
-  // Formal Model Context Protocol JSON-RPC 2.0 Payload
-  const rpcPayload = {
-    jsonrpc: '2.0',
-    id: `mcp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    method: 'tools/call',
-    params: {
-      name: toolName,
-      arguments: {
-        ...args,
-        source: 'AI Tools Store MCP Client',
-        timestamp: new Date().toISOString()
-      }
-    }
+  // Extract strictly ONLY user details from contact form
+  const cleanUserData = {
+    name: args.name || args.full_name || '',
+    email: args.email || '',
+    whatsapp: args.whatsapp || args.whatsapp_number || '',
+    topic: args.topic || args.subject || '',
+    message: args.message || ''
   };
+
+  // If the target URL is an n8n webhook (or general URL), send ONLY pure user details
+  // If explicitly an MCP endpoint (/mcp-test or /mcp/), send MCP JSON-RPC with only cleanUserData in arguments
+  const isMcpProtocol = cleanUrl.includes('/mcp-test') || cleanUrl.includes('/mcp/');
+
+  const payload = isMcpProtocol
+    ? {
+        jsonrpc: '2.0',
+        id: `mcp-${Date.now()}`,
+        method: 'tools/call',
+        params: {
+          name: toolName || 'submit_customer_inquiry',
+          arguments: cleanUserData
+        }
+      }
+    : cleanUserData;
 
   const response = await fetch(cleanUrl, {
     method: 'POST',
     headers: requestHeaders,
-    body: JSON.stringify(rpcPayload)
+    body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
     if (response.status === 406) {
-      throw new Error('HTTP 406: MCP content negotiation rejected.');
+      throw new Error('HTTP 406: Content negotiation rejected.');
     }
     if (response.status === 404) {
-      throw new Error('HTTP 404: n8n MCP Server Trigger is not listening. Ensure workflow is active.');
+      throw new Error('HTTP 404: n8n endpoint is not listening. Ensure workflow is active.');
     }
-    throw new Error(`MCP tool call returned HTTP ${response.status} (${response.statusText})`);
+    throw new Error(`n8n returned HTTP ${response.status} (${response.statusText})`);
   }
 
   const resultText = await response.text();

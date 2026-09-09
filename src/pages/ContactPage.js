@@ -326,20 +326,22 @@ export async function renderContactPage(root) {
           }
         }
 
-        // 2. Dispatch query directly to n8n MCP Server Trigger via MCP Client
+        // 2. Dispatch ONLY user details directly to n8n Webhook / MCP Server Trigger
         const settings = getAppSettings();
         if (settings.mcpWebhookUrl && settings.mcpWebhookUrl.trim().startsWith('http')) {
           mcpClient.setServerUrl(settings.mcpWebhookUrl);
           mcpClient.setSecretKey(settings.mcpSecretKey || '');
-          mcpClient.submitInquiry({
-            full_name: name,
-            email: email,
-            whatsapp_number: whatsapp,
-            topic: subject,
-            message: message
-          }).catch((mcpErr) => {
-            console.warn('[ContactPage] MCP inquiry submission notice:', mcpErr.message);
-          });
+          try {
+            await mcpClient.submitInquiry({
+              name: name,
+              email: email,
+              whatsapp: whatsapp,
+              topic: subject,
+              message: message
+            });
+          } catch (mcpErr) {
+            console.warn('[ContactPage] n8n submission notice:', mcpErr.message);
+          }
         }
 
         showToast(`Thank you, ${name}! Your message has been received. Our team will contact you shortly.`, 'success');
