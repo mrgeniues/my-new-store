@@ -176,6 +176,13 @@ export async function renderAdminDashboardPage(root) {
     console.warn('Could not load registered users:', uErr);
   }
 
+  let hotDeals = [];
+  try {
+    hotDeals = await toolsApi.adminGetHotDeals();
+  } catch (dErr) {
+    console.warn('Could not load hot deals:', dErr);
+  }
+
   const activeCount = tools.filter((t) => t.active).length;
   const featuredCount = tools.filter((t) => t.featured).length;
   const categoriesList = categories.map((c) => c.name);
@@ -208,6 +215,9 @@ export async function renderAdminDashboardPage(root) {
           <button id="admin-add-tool-btn" class="btn btn-primary" style="font-size: 0.88rem; padding: 0.65rem 1.35rem; font-weight: 700;">
             + Add New AI Tool
           </button>
+          <button id="admin-add-deal-top-btn" class="btn btn-secondary" style="font-size: 0.88rem; padding: 0.65rem 1.25rem; font-weight: 700; border-color: rgba(249, 115, 22, 0.4); color: #fb923c;">
+            🔥 + Add Hot Deal
+          </button>
           <button id="admin-add-cat-top-btn" class="btn btn-secondary" style="font-size: 0.88rem; padding: 0.65rem 1.25rem; font-weight: 700; border-color: rgba(168, 85, 247, 0.4); color: #c084fc;">
             + Add Category
           </button>
@@ -230,6 +240,11 @@ export async function renderAdminDashboardPage(root) {
             <rect x="3" y="14" width="7" height="7"/>
           </svg>
           <span>AI Tools Inventory (${tools.length})</span>
+        </button>
+
+        <button class="admin-tab-btn ${activeTab === 'deals' ? 'active' : ''}" data-tab="deals" style="${activeTab === 'deals' ? 'border-color: #fb923c;' : ''}">
+          <span style="font-size: 1.05rem;">🔥</span>
+          <span>Hot Deals &amp; BOGO (${hotDeals.length})</span>
         </button>
 
         <button class="admin-tab-btn ${activeTab === 'categories' ? 'active' : ''}" data-tab="categories">
@@ -405,6 +420,86 @@ export async function renderAdminDashboardPage(root) {
 
           <div id="tools-table-container">
             ${renderToolsTableHtml(tools, adminPricingCountry)}
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB DEALS: HOT DEALS & PROMOTIONS -->
+      <div id="tab-content-deals" style="${activeTab === 'deals' ? 'display: block;' : 'display: none;'}">
+        <!-- Hot Deals KPI Summary Row -->
+        <div class="kpi-row" style="margin-bottom: 2rem;">
+          <div class="kpi-card">
+            <div class="kpi-info">
+              <h4>Total Hot Deals</h4>
+              <div class="kpi-number">${hotDeals.length}</div>
+              <div class="kpi-delta" style="color: #fb923c;">Promotional offerings</div>
+            </div>
+            <div class="kpi-icon-box" style="background: rgba(249, 115, 22, 0.15); color: #fb923c; font-size: 1.3rem;">
+              🔥
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-info">
+              <h4>Active Live Deals</h4>
+              <div class="kpi-number">${hotDeals.filter(d => d.active).length}</div>
+              <div class="kpi-delta" style="color: var(--accent-mint);">Visible on /deals storefront</div>
+            </div>
+            <div class="kpi-icon-box" style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-size: 1.3rem;">
+              ✓
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-info">
+              <h4>BOGO &amp; Combo Offers</h4>
+              <div class="kpi-number">${hotDeals.filter(d => (d.offerLabel || '').toLowerCase().includes('get') || (d.freeQuantity > 0)).length}</div>
+              <div class="kpi-delta" style="color: var(--accent-cyan);">Buy 1 Get 1 free specials</div>
+            </div>
+            <div class="kpi-icon-box" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 1.3rem;">
+              🎁
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter and Action Bar for Deals -->
+        <div class="admin-filter-bar">
+          <div style="display: flex; gap: 0.75rem; align-items: center; flex: 1; max-width: 450px;">
+            <input 
+              type="text" 
+              id="deals-admin-search-input" 
+              class="admin-search-input" 
+              placeholder="Search deals by product name, offer, or slug..." 
+              style="width: 100%;"
+            />
+          </div>
+
+          <div style="display: flex; gap: 0.75rem; align-items: center;">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">
+              Total <strong id="deals-admin-count-badge" style="color: var(--text-pure);">${hotDeals.length}</strong> deals
+            </div>
+            <button id="admin-add-deal-btn" class="btn btn-primary" style="font-size: 0.88rem; padding: 0.65rem 1.35rem; font-weight: 700; background: linear-gradient(135deg, #ef4444, #f97316); border: none;">
+              🔥 + Add New Hot Deal
+            </button>
+          </div>
+        </div>
+
+        <!-- Deals Inventory Table Card -->
+        <div class="admin-table-card">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
+            <div>
+              <h3 style="font-size: 1.15rem; color: var(--text-pure); font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+                <span>Hot Deals &amp; Promotional Catalog</span>
+                <span class="badge" style="background: rgba(249, 115, 22, 0.2); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.4); font-size: 0.72rem; font-weight: 700;">
+                  BOGO / Bundles
+                </span>
+              </h3>
+            </div>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Syncs with /deals page</span>
+          </div>
+
+          <div id="admin-deals-table-container">
+            ${renderHotDealsTableHtml(hotDeals, adminPricingCountry)}
           </div>
         </div>
       </div>
@@ -904,7 +999,7 @@ export async function renderAdminDashboardPage(root) {
       document.querySelectorAll('.admin-tab-btn').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
 
-      ['tools', 'categories', 'users', 'analytics', 'settings'].forEach((tName) => {
+      ['tools', 'deals', 'categories', 'users', 'analytics', 'settings'].forEach((tName) => {
         const el = document.getElementById(`tab-content-${tName}`);
         if (el) el.style.display = tName === tab ? 'block' : 'none';
       });
@@ -1030,6 +1125,41 @@ export async function renderAdminDashboardPage(root) {
 
   // Bind initial users table events
   bindUsersTableEvents(users, root);
+
+  // Hot Deals Search Listener
+  const dealsSearchInput = document.getElementById('deals-admin-search-input');
+  if (dealsSearchInput) {
+    dealsSearchInput.oninput = () => {
+      const q = (dealsSearchInput.value || '').toLowerCase().trim();
+      const filteredDeals = hotDeals.filter((d) => {
+        return (
+          !q ||
+          (d.name || '').toLowerCase().includes(q) ||
+          (d.slug || '').toLowerCase().includes(q) ||
+          (d.offerLabel || '').toLowerCase().includes(q) ||
+          (d.category || '').toLowerCase().includes(q)
+        );
+      });
+      const container = document.getElementById('admin-deals-table-container');
+      const badge = document.getElementById('deals-admin-count-badge');
+      if (badge) badge.textContent = filteredDeals.length;
+      if (container) {
+        container.innerHTML = renderHotDealsTableHtml(filteredDeals, adminPricingCountry);
+        bindHotDealsTableEvents(filteredDeals, root, tools);
+      }
+    };
+  }
+
+  // Bind initial hot deals table events
+  bindHotDealsTableEvents(hotDeals, root, tools);
+
+  // Add Deal button click handlers
+  document.getElementById('admin-add-deal-btn')?.addEventListener('click', () => {
+    openHotDealEditorModal(null, root, tools);
+  });
+  document.getElementById('admin-add-deal-top-btn')?.addEventListener('click', () => {
+    openHotDealEditorModal(null, root, tools);
+  });
 
   // Admin Sign Out button
   document.getElementById('admin-signout-btn')?.addEventListener('click', async () => {
@@ -2919,3 +3049,480 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
     }
   };
 }
+
+// ============================================================================
+// HOT DEALS TABLE & EVENT HANDLERS
+// ============================================================================
+
+function renderHotDealsTableHtml(dealsList, targetCountry = 'Pakistan') {
+  if (!dealsList || dealsList.length === 0) {
+    return `
+      <div style="text-align: center; padding: 3.5rem 1rem; color: var(--text-muted);">
+        <div style="font-size: 2.8rem; margin-bottom: 0.5rem;">🔥</div>
+        <p style="font-weight: 700; color: var(--text-pure); font-size: 1.1rem;">No hot deals in promotional catalog.</p>
+        <p style="font-size: 0.85rem; margin-top: 0.35rem;">Click "+ Add New Hot Deal" above to configure your first BOGO / promotional deal.</p>
+      </div>
+    `;
+  }
+
+  return `
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th style="width: 70px;">Media</th>
+          <th>Product / Deal Title</th>
+          <th>Offer Tag</th>
+          <th>Quantities (Buy / Free)</th>
+          <th>Promo Deal Price (${targetCountry})</th>
+          <th>Stock Scarcity</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${dealsList.map((d) => {
+          const localizedPrice = getToolLocalizedPrice(d, targetCountry);
+          const buyQty = d.buyQuantity || 1;
+          const freeQty = d.freeQuantity || 1;
+          const offerLabel = d.offerLabel || 'BUY 1 GET 1 FREE';
+
+          return `
+            <tr>
+              <td>
+                <div style="width: 52px; height: 40px; border-radius: 8px; overflow: hidden; background: #070d18; border: 1px solid rgba(249, 115, 22, 0.4);">
+                  <img src="${d.image || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80'}" alt="${d.name}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80';" />
+                </div>
+              </td>
+              <td>
+                <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+                  <strong style="color: var(--text-pure); font-size: 0.95rem;">${d.name}</strong>
+                  <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="font-size: 0.75rem; color: #fb923c;">${d.category || 'Hot Deals'}</span>
+                    <span style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono);">slug: ${d.slug}</span>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span class="badge" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(249, 115, 22, 0.3)); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.45); font-weight: 800; font-size: 0.75rem; padding: 0.25rem 0.65rem;">
+                  🔥 ${offerLabel}
+                </span>
+              </td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                  <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 0.75rem; font-weight: 800; padding: 0.2rem 0.5rem; border-radius: 6px;">
+                    Buy: ${buyQty}
+                  </span>
+                  <span style="color: #f97316; font-weight: 800;">+</span>
+                  <span style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); font-size: 0.75rem; font-weight: 800; padding: 0.2rem 0.5rem; border-radius: 6px;">
+                    Get: ${freeQty} Free
+                  </span>
+                </div>
+              </td>
+              <td>
+                <div>
+                  <strong style="color: #34d399; font-size: 0.95rem;">${localizedPrice}</strong>
+                  <div style="font-size: 0.75rem; color: var(--text-muted); text-decoration: line-through;">
+                    ${d.regularPrice || ''}
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span style="font-size: 0.78rem; color: #fde047; font-weight: 600;">
+                  ⚡ ${d.stockLeft || 'Limited slots'}
+                </span>
+              </td>
+              <td>
+                <button 
+                  class="badge toggle-deal-active-btn" 
+                  data-deal-id="${d.id}" 
+                  data-active="${Boolean(d.active)}"
+                  style="cursor: pointer; border: none; ${d.active ? 'background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.35);' : 'background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.35);'}"
+                  title="Click to toggle deal active status"
+                >
+                  ${d.active ? '● Active' : '○ Inactive'}
+                </button>
+              </td>
+              <td>
+                <div style="display: flex; gap: 0.4rem;">
+                  <a href="#/deals" class="btn-details" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;" title="Preview deal on /deals">Preview</a>
+                  <button class="btn-details edit-deal-btn" data-deal-id="${d.id}" style="font-size: 0.75rem; padding: 0.35rem 0.65rem; color: var(--accent-cyan);" title="Edit deal details">Edit</button>
+                  <button class="btn-details delete-deal-btn" data-deal-id="${d.id}" data-deal-name="${d.name}" style="font-size: 0.75rem; padding: 0.35rem 0.65rem; color: #f87171;" title="Delete deal">Delete</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function bindHotDealsTableEvents(dealsList, root, toolsList = []) {
+  // Toggle active status
+  document.querySelectorAll('.toggle-deal-active-btn').forEach((btn) => {
+    btn.onclick = async () => {
+      const id = btn.dataset.dealId;
+      const currentActive = btn.dataset.active === 'true';
+      const newActive = !currentActive;
+
+      try {
+        await toolsApi.adminToggleHotDealActive(id, newActive);
+        showToast(`Hot Deal status changed to ${newActive ? 'Active' : 'Inactive'}.`, 'success');
+        renderAdminDashboardPage(root);
+      } catch (e) {
+        showToast(`Error: ${e.message}`, 'error');
+      }
+    };
+  });
+
+  // Edit deal
+  document.querySelectorAll('.edit-deal-btn').forEach((btn) => {
+    btn.onclick = () => {
+      const id = btn.dataset.dealId;
+      const deal = dealsList.find((d) => d.id === id);
+      if (deal) openHotDealEditorModal(deal, root, toolsList);
+    };
+  });
+
+  // Delete deal
+  document.querySelectorAll('.delete-deal-btn').forEach((btn) => {
+    btn.onclick = async () => {
+      const id = btn.dataset.dealId;
+      const name = btn.dataset.dealName;
+      if (confirm(`Are you sure you want to permanently delete the Hot Deal "${name}"?`)) {
+        try {
+          await toolsApi.adminDeleteHotDeal(id);
+          showToast(`Deleted deal "${name}".`, 'success');
+          renderAdminDashboardPage(root);
+        } catch (e) {
+          showToast(`Failed to delete deal: ${e.message}`, 'error');
+        }
+      }
+    };
+  });
+}
+
+function openHotDealEditorModal(deal = null, root, toolsList = []) {
+  const isEdit = Boolean(deal);
+  const targetDeal = deal || {
+    id: '',
+    name: '',
+    slug: '',
+    category: 'Promotions & Bundles',
+    offerLabel: 'BUY 1 GET 1 FREE',
+    buyQuantity: 1,
+    freeQuantity: 1,
+    dealPrice: 'PKR 1,999 /mo',
+    regularPrice: 'PKR 3,999 /mo',
+    image: '',
+    shortDescription: '',
+    fullDescription: '',
+    stockLeft: 'Only 5 spots left today',
+    countryPricing: {
+      Pakistan: 'PKR 1,999 /mo',
+      India: 'INR 999 /mo',
+      'United Arab Emirates': 'AED 45 /mo',
+      'Saudi Arabia': 'SAR 49 /mo',
+      'United States': 'USD $14.99 /mo',
+      'United Kingdom': 'GBP £11.99 /mo'
+    },
+    active: true
+  };
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop auth-backdrop-fade';
+
+  backdrop.innerHTML = `
+    <div class="modal-card" style="max-width: 780px; max-height: 92vh; overflow-y: auto;" onclick="event.stopPropagation();">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 1rem;">
+        <div>
+          <h3 style="font-size: 1.35rem; color: var(--text-pure); font-weight: 800; display: flex; align-items: center; gap: 0.5rem;">
+            <span>🔥</span>
+            <span>${isEdit ? `Edit Hot Deal: ${targetDeal.name}` : 'Create New Hot Deal / Promotion'}</span>
+          </h3>
+          <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.2rem;">
+            Configure Buy 1 Get 1 Free, custom quantities, promotional pricing, and stock urgency.
+          </p>
+        </div>
+        <button id="deal-editor-close" class="modal-close-btn">&times;</button>
+      </div>
+
+      <!-- Quick Template / Existing Tool Pre-filler -->
+      ${toolsList && toolsList.length > 0 ? `
+        <div style="margin-bottom: 1.25rem; padding: 0.85rem 1rem; background: rgba(30, 41, 59, 0.6); border: 1px dashed rgba(56, 189, 248, 0.35); border-radius: 12px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+          <div>
+            <div style="font-size: 0.82rem; font-weight: 700; color: #f8fafc;">Select Existing Tool to Pre-Fill:</div>
+            <div style="font-size: 0.74rem; color: #94a3b8;">Automatically populate name, image, description, and category.</div>
+          </div>
+          <select id="deal-prefill-tool" class="admin-search-input" style="min-width: 220px; font-size: 0.82rem;">
+            <option value="">-- Choose a tool (Optional) --</option>
+            ${toolsList.map((t) => `<option value="${t.id}">${t.name} (${t.category})</option>`).join('')}
+          </select>
+        </div>
+      ` : ''}
+
+      <form id="hot-deal-editor-form">
+        <!-- Deal Name & Slug -->
+        <div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 1rem;">
+          <div class="form-group">
+            <label class="form-label">Deal Title / Product Name *</label>
+            <input type="text" id="deal-name" class="form-input" value="${targetDeal.name || ''}" placeholder="e.g. ChatGPT Plus & Claude Pro Duo Bundle" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">URL Slug *</label>
+            <input type="text" id="deal-slug" class="form-input" value="${targetDeal.slug || ''}" placeholder="e.g. chatgpt-claude-duo-bogo" required />
+          </div>
+        </div>
+
+        <!-- OFFER CONFIGURATION: Offer Tag, Buy Qty, Free Qty -->
+        <div style="background: rgba(15, 23, 42, 0.75); border: 1.5px solid rgba(249, 115, 22, 0.4); border-radius: 14px; padding: 1.15rem; margin-bottom: 1.25rem;">
+          <div style="font-size: 0.88rem; font-weight: 800; color: #fb923c; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.4rem;">
+            <span>🎁</span> <span>Offer Specification (Buy X Get Y Free)</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1.2fr 0.8fr 0.8fr; gap: 1rem; margin-bottom: 0.75rem;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label">Offer Tag / Label *</label>
+              <input type="text" id="deal-offer-label" class="form-input" value="${targetDeal.offerLabel || 'BUY 1 GET 1 FREE'}" placeholder="e.g. BUY 1 GET 1 FREE" required />
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label">Buy Quantity *</label>
+              <input type="number" id="deal-buy-qty" class="form-input" value="${targetDeal.buyQuantity || 1}" min="1" required />
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label">Free Bonus Quantity *</label>
+              <input type="number" id="deal-free-qty" class="form-input" value="${targetDeal.freeQuantity || 1}" min="0" required />
+            </div>
+          </div>
+
+          <!-- Quick Offer Chips -->
+          <div style="display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; margin-top: 0.5rem;">
+            <span style="font-size: 0.72rem; color: var(--text-muted);">Quick Presets:</span>
+            <button type="button" class="currency-chip preset-offer-chip" data-offer="BUY 1 GET 1 FREE" data-buy="1" data-free="1" style="font-size: 0.72rem; padding: 0.2rem 0.6rem;">Buy 1 Get 1 Free</button>
+            <button type="button" class="currency-chip preset-offer-chip" data-offer="BUY 2 GET 1 FREE" data-buy="2" data-free="1" style="font-size: 0.72rem; padding: 0.2rem 0.6rem;">Buy 2 Get 1 Free</button>
+            <button type="button" class="currency-chip preset-offer-chip" data-offer="BUY 1 GET 2 FREE" data-buy="1" data-free="2" style="font-size: 0.72rem; padding: 0.2rem 0.6rem;">Buy 1 Get 2 Free</button>
+            <button type="button" class="currency-chip preset-offer-chip" data-offer="BUY 3 GET 2 FREE" data-buy="3" data-free="2" style="font-size: 0.72rem; padding: 0.2rem 0.6rem;">Buy 3 Get 2 Free</button>
+            <button type="button" class="currency-chip preset-offer-chip" data-offer="FLASH SALE 50% OFF" data-buy="1" data-free="0" style="font-size: 0.72rem; padding: 0.2rem 0.6rem;">50% Off Flash</button>
+          </div>
+        </div>
+
+        <!-- PRICING & LOCALIZATION -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+          <div class="form-group">
+            <label class="form-label">Deal Promo Price (Base) *</label>
+            <input type="text" id="deal-base-price" class="form-input" value="${targetDeal.dealPrice || targetDeal.price || 'PKR 1,999 /mo'}" placeholder="e.g. PKR 1,999 /mo" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Regular Price (Strikethrough)</label>
+            <input type="text" id="deal-regular-price" class="form-input" value="${targetDeal.regularPrice || 'PKR 3,999 /mo'}" placeholder="e.g. PKR 3,999 /mo" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Stock Scarcity / Urgency</label>
+            <input type="text" id="deal-stock-left" class="form-input" value="${targetDeal.stockLeft || 'Only 5 slots left today'}" placeholder="e.g. Only 5 slots left today" />
+          </div>
+        </div>
+
+        <!-- MULTI-COUNTRY PRICING ACCORDION -->
+        <details style="margin-bottom: 1.25rem; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 0.85rem;" open>
+          <summary style="cursor: pointer; font-size: 0.88rem; font-weight: 700; color: var(--accent-cyan); display: flex; align-items: center; justify-content: space-between;">
+            <span>🌍 Multi-Country Localized Deal Pricing</span>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">PKR, INR, AED, SAR, USD, GBP</span>
+          </summary>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-top: 1rem;">
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">🇵🇰 Pakistan (PKR)</label>
+              <input type="text" id="deal-geo-pk" class="form-input" value="${targetDeal.countryPricing?.Pakistan || targetDeal.dealPrice || 'PKR 1,999 /mo'}" />
+            </div>
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">🇮🇳 India (INR ₹)</label>
+              <input type="text" id="deal-geo-in" class="form-input" value="${targetDeal.countryPricing?.India || 'INR 999 /mo'}" />
+            </div>
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">🇦🇪 UAE (AED)</label>
+              <input type="text" id="deal-geo-ae" class="form-input" value="${targetDeal.countryPricing?.['United Arab Emirates'] || targetDeal.countryPricing?.UAE || 'AED 45 /mo'}" />
+            </div>
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">🇸🇦 Saudi (SAR)</label>
+              <input type="text" id="deal-geo-sa" class="form-input" value="${targetDeal.countryPricing?.['Saudi Arabia'] || targetDeal.countryPricing?.Saudi || 'SAR 49 /mo'}" />
+            </div>
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">🇺🇸 US (USD $)</label>
+              <input type="text" id="deal-geo-us" class="form-input" value="${targetDeal.countryPricing?.['United States'] || targetDeal.countryPricing?.USD || 'USD $14.99 /mo'}" />
+            </div>
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">🇬🇧 UK (GBP £)</label>
+              <input type="text" id="deal-geo-gb" class="form-input" value="${targetDeal.countryPricing?.['United Kingdom'] || targetDeal.countryPricing?.GBP || 'GBP £11.99 /mo'}" />
+            </div>
+          </div>
+        </details>
+
+        <!-- Category & Description -->
+        <div style="display: grid; grid-template-columns: 0.8fr 1.2fr; gap: 1rem; margin-bottom: 1.25rem;">
+          <div class="form-group">
+            <label class="form-label">Category *</label>
+            <input type="text" id="deal-category" class="form-input" value="${targetDeal.category || 'Promotions & Bundles'}" placeholder="e.g. Text / Reasoning" required />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Banner Image URL</label>
+            <input type="text" id="deal-image" class="form-input" value="${targetDeal.image || ''}" placeholder="https://images.unsplash.com/..." />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Deal Details &amp; Promotion Description *</label>
+          <textarea id="deal-description" class="form-textarea" style="min-height: 80px;" placeholder="Describe what tools are included in this bundle, how the customer gets access, and why this is a high-value offer..." required>${targetDeal.shortDescription || targetDeal.description || ''}</textarea>
+        </div>
+
+        <!-- Active Checkbox & Sort Order -->
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1rem; background: rgba(0,0,0,0.25); border-radius: 10px; margin-bottom: 1.5rem;">
+          <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; font-size: 0.92rem; font-weight: 700; color: #f8fafc;">
+            <input type="checkbox" id="deal-active" ${targetDeal.active !== false ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: #f97316;" />
+            <span>Active Promotion (Instantly visible on /deals storefront)</span>
+          </label>
+
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <label style="font-size: 0.78rem; color: var(--text-muted);">Sort Order:</label>
+            <input type="number" id="deal-sort-order" class="form-input" value="${targetDeal.sortOrder ?? 0}" style="width: 70px; text-align: center; padding: 0.35rem;" />
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-subtle); padding-top: 1.25rem;">
+          <button type="button" id="deal-cancel-btn" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="deal-submit-btn" class="btn btn-primary" style="padding: 0.75rem 2rem; font-weight: 800; background: linear-gradient(135deg, #ef4444, #f97316); border: none;">
+            ${isEdit ? 'Save Deal Changes' : 'Publish Hot Deal'}
+          </button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(backdrop);
+
+  const closeModal = () => {
+    backdrop.remove();
+  };
+
+  backdrop.onclick = (e) => {
+    if (e.target === backdrop) closeModal();
+  };
+  document.getElementById('deal-editor-close')?.addEventListener('click', closeModal);
+  document.getElementById('deal-cancel-btn')?.addEventListener('click', closeModal);
+
+  // Auto-generate slug from title
+  const nameInput = document.getElementById('deal-name');
+  const slugInput = document.getElementById('deal-slug');
+  if (nameInput && slugInput && !isEdit) {
+    nameInput.addEventListener('input', () => {
+      slugInput.value = nameInput.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    });
+  }
+
+  // Pre-fill tool dropdown listener
+  const prefillSelect = document.getElementById('deal-prefill-tool');
+  if (prefillSelect) {
+    prefillSelect.addEventListener('change', () => {
+      const toolId = prefillSelect.value;
+      if (!toolId) return;
+      const selected = toolsList.find((t) => t.id === toolId);
+      if (selected) {
+        if (nameInput) nameInput.value = `${selected.name} (BOGO Deal)`;
+        if (slugInput) slugInput.value = `${selected.slug || selected.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-bogo`;
+        const imgInput = document.getElementById('deal-image');
+        if (imgInput && selected.image) imgInput.value = selected.image;
+        const catInput = document.getElementById('deal-category');
+        if (catInput && selected.category) catInput.value = selected.category;
+        const descInput = document.getElementById('deal-description');
+        if (descInput) descInput.value = `Buy 1 ${selected.name} subscription and get 1 extra seat/month free! ${selected.shortDescription || ''}`;
+        
+        // Copy localized price if available
+        if (selected.countryPricing) {
+          if (selected.countryPricing.Pakistan) document.getElementById('deal-geo-pk').value = selected.countryPricing.Pakistan;
+          if (selected.countryPricing.India) document.getElementById('deal-geo-in').value = selected.countryPricing.India;
+          if (selected.countryPricing['United Arab Emirates']) document.getElementById('deal-geo-ae').value = selected.countryPricing['United Arab Emirates'];
+          if (selected.countryPricing['Saudi Arabia']) document.getElementById('deal-geo-sa').value = selected.countryPricing['Saudi Arabia'];
+          if (selected.countryPricing['United States']) document.getElementById('deal-geo-us').value = selected.countryPricing['United States'];
+          if (selected.countryPricing['United Kingdom']) document.getElementById('deal-geo-gb').value = selected.countryPricing['United Kingdom'];
+        }
+        showToast(`Pre-filled details from "${selected.name}"`, 'info');
+      }
+    });
+  }
+
+  // Preset offer chips listener
+  document.querySelectorAll('.preset-offer-chip').forEach((chip) => {
+    chip.onclick = () => {
+      document.getElementById('deal-offer-label').value = chip.dataset.offer;
+      document.getElementById('deal-buy-qty').value = chip.dataset.buy;
+      document.getElementById('deal-free-qty').value = chip.dataset.free;
+    };
+  });
+
+  // Form submission
+  const form = document.getElementById('hot-deal-editor-form');
+  const submitBtn = document.getElementById('deal-submit-btn');
+
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    submitBtn.textContent = 'Saving Deal...';
+    submitBtn.disabled = true;
+
+    const basePrice = document.getElementById('deal-base-price').value.trim();
+    const pkPrice = document.getElementById('deal-geo-pk')?.value.trim() || basePrice;
+    const inPrice = document.getElementById('deal-geo-in')?.value.trim() || '';
+    const aePrice = document.getElementById('deal-geo-ae')?.value.trim() || '';
+    const saPrice = document.getElementById('deal-geo-sa')?.value.trim() || '';
+    const usPrice = document.getElementById('deal-geo-us')?.value.trim() || '';
+    const gbPrice = document.getElementById('deal-geo-gb')?.value.trim() || '';
+
+    const countryPricing = {
+      ...(targetDeal.countryPricing || {}),
+      DEFAULT: basePrice,
+      Pakistan: pkPrice,
+      pakistan: pkPrice,
+      PK: pkPrice
+    };
+    if (inPrice) { countryPricing.India = inPrice; countryPricing.IN = inPrice; }
+    if (aePrice) { countryPricing['United Arab Emirates'] = aePrice; countryPricing.UAE = aePrice; countryPricing.AE = aePrice; }
+    if (saPrice) { countryPricing['Saudi Arabia'] = saPrice; countryPricing.SAR = saPrice; }
+    if (usPrice) { countryPricing['United States'] = usPrice; countryPricing.USD = usPrice; }
+    if (gbPrice) { countryPricing['United Kingdom'] = gbPrice; countryPricing.GBP = gbPrice; }
+
+    const payload = {
+      id: targetDeal.id,
+      name: nameInput.value.trim(),
+      slug: slugInput.value.trim(),
+      category: document.getElementById('deal-category').value.trim(),
+      offerLabel: document.getElementById('deal-offer-label').value.trim(),
+      buyQuantity: parseInt(document.getElementById('deal-buy-qty').value, 10) || 1,
+      freeQuantity: parseInt(document.getElementById('deal-free-qty').value, 10) || 0,
+      dealPrice: basePrice,
+      price: basePrice,
+      regularPrice: document.getElementById('deal-regular-price').value.trim(),
+      stockLeft: document.getElementById('deal-stock-left').value.trim(),
+      countryPricing: countryPricing,
+      image: document.getElementById('deal-image').value.trim(),
+      shortDescription: document.getElementById('deal-description').value.trim(),
+      fullDescription: document.getElementById('deal-description').value.trim(),
+      active: document.getElementById('deal-active').checked,
+      sortOrder: parseInt(document.getElementById('deal-sort-order').value, 10) || 0
+    };
+
+    try {
+      await toolsApi.adminSaveHotDeal(payload);
+      showToast(`Hot Deal "${payload.name}" successfully published!`, 'success');
+      closeModal();
+      activeTab = 'deals';
+      renderAdminDashboardPage(root);
+    } catch (err) {
+      showToast(`Error saving deal: ${err.message}`, 'error');
+      submitBtn.textContent = isEdit ? 'Save Deal Changes' : 'Publish Hot Deal';
+      submitBtn.disabled = false;
+    }
+  };
+}
+

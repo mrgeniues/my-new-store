@@ -88,28 +88,63 @@ export class McpClient {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const isWebhook = endpoint.includes('/webhook');
 
-      const response = await fetch(endpoint, {
-        method: 'GET',
-        headers: {
-          'Accept': MCP_HEADERS.ACCEPT,
-          ...(secret ? { 'Authorization': `Bearer ${secret}`, 'X-MCP-Secret': secret } : {})
-        },
-        signal: controller.signal
-      });
+      const reqHeaders = {
+        'Accept': MCP_HEADERS.ACCEPT,
+        'Content-Type': MCP_HEADERS.CONTENT_TYPE,
+        ...(secret ? { 'Authorization': `Bearer ${secret}`, 'X-MCP-Secret': secret } : {})
+      };
+
+      let response;
+      let usedPost = isWebhook;
+
+      if (isWebhook) {
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: reqHeaders,
+          body: JSON.stringify({ action: 'ping', test: true, timestamp: Date.now() }),
+          signal: controller.signal
+        });
+      } else {
+        response = await fetch(endpoint, {
+          method: 'GET',
+          headers: reqHeaders,
+          signal: controller.signal
+        });
+
+        if (response.status === 404 || response.status === 405) {
+          try {
+            const postResp = await fetch(endpoint, {
+              method: 'POST',
+              headers: reqHeaders,
+              body: JSON.stringify({ action: 'ping', test: true, timestamp: Date.now() }),
+              signal: controller.signal
+            });
+            if (postResp.ok || postResp.status === 200 || postResp.status === 201) {
+              response = postResp;
+              usedPost = true;
+            }
+          } catch (e) {
+            // ignore retry error
+          }
+        }
+      }
 
       clearTimeout(timeoutId);
       const elapsed = Date.now() - startTime;
       const status = response.status;
       const statusText = response.statusText || (status === 200 ? 'OK' : 'Error');
 
-      if (status === 200) {
+      if (status === 200 || status === 201) {
         const okRes = {
           connected: true,
           status: 200,
           statusText: 'OK',
           latencyMs: elapsed,
-          message: '✓ Connected! n8n MCP Server Trigger accepted the connection.'
+          message: usedPost
+            ? '✓ Connected! n8n Webhook / MCP Server accepted test payload.'
+            : '✓ Connected! n8n MCP Server Trigger accepted the connection.'
         };
         this._notify('CONNECTED', okRes);
         return okRes;
@@ -119,9 +154,9 @@ export class McpClient {
       if (status === 406) {
         errorMsg = 'HTTP 406 Not Acceptable: n8n MCP Server Trigger requires SSE transport and JSON content negotiation.';
       } else if (status === 404) {
-        errorMsg = endpoint.includes('mcp-test') 
-          ? 'HTTP 404: n8n is waiting for test events. Click "Execute step" in n8n first, then test again.'
-          : 'HTTP 404: Production MCP URL not found. Ensure n8n workflow is Active (On).';
+        errorMsg = (endpoint.includes('mcp-test') || endpoint.includes('webhook-test'))
+          ? 'HTTP 404: n8n is waiting for test events. Click "Listen for test event" / "Execute step" in n8n first, then test again.'
+          : 'HTTP 404: Production URL not found or workflow is inactive. Ensure n8n workflow is Active (On).';
       }
 
       const failRes = {

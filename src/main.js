@@ -7,12 +7,14 @@ import { renderToolDetailsPage } from './pages/ToolDetailsPage.js';
 import { renderCategoriesPage } from './pages/CategoriesPage.js';
 import { renderAboutPage } from './pages/AboutPage.js';
 import { renderContactPage } from './pages/ContactPage.js';
+import { renderHotDealsPage } from './pages/HotDealsPage.js';
 import { renderAdminDashboardPage } from './pages/AdminDashboardPage.js';
 
 // Define Application Routes
 const routes = {
   '/': renderHomePage,
   '/tools': renderAllToolsPage,
+  '/deals': renderHotDealsPage,
   '/tool/:id': renderToolDetailsPage,
   '/categories': renderCategoriesPage,
   '/about': renderAboutPage,

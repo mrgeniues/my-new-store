@@ -260,6 +260,7 @@ export function toggleProfileDropdown(forceClose = false) {
 export function renderNavbar(activePath = '/') {
   const isHome = activePath === '/' || activePath === '';
   const isTools = activePath === '/tools';
+  const isDeals = activePath === '/deals';
   const isCategories = activePath === '/categories';
   const isAbout = activePath === '/about';
   const isContact = activePath === '/contact';
@@ -286,6 +287,11 @@ export function renderNavbar(activePath = '/') {
         <nav class="nav-menu">
           <a href="#/" class="nav-link ${isHome ? 'active' : ''}">${t('nav.home')}</a>
           <a href="#/tools" class="nav-link ${isTools ? 'active' : ''}">${t('nav.allTools')}</a>
+          <a href="#/deals" class="nav-link nav-link-hot-deals ${isDeals ? 'active' : ''}" style="display: inline-flex; align-items: center; gap: 0.35rem;">
+            <span style="font-size: 0.95rem; filter: drop-shadow(0 0 8px rgba(249, 115, 22, 0.7));">🔥</span>
+            <span>${t('nav.hotDeals') || 'Hot Deals'}</span>
+            <span class="nav-hot-pill" style="font-size: 0.62rem; padding: 0.08rem 0.38rem; background: linear-gradient(135deg, #ef4444, #f97316); color: #ffffff; border-radius: 999px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; box-shadow: 0 0 10px rgba(239, 68, 68, 0.45);">OFFER</span>
+          </a>
           <a href="#/categories" class="nav-link ${isCategories ? 'active' : ''}">${t('nav.categories')}</a>
           <a href="#/about" class="nav-link ${isAbout ? 'active' : ''}">${t('nav.about')}</a>
           <a href="#/contact" class="nav-link ${isContact ? 'active' : ''}">${t('nav.contact')}</a>
@@ -333,6 +339,13 @@ export function renderNavbar(activePath = '/') {
         <div class="mobile-nav-links">
           <a href="#/" class="mobile-nav-link ${isHome ? 'active' : ''}">${t('nav.home')}</a>
           <a href="#/tools" class="mobile-nav-link ${isTools ? 'active' : ''}">${t('nav.allTools')}</a>
+          <a href="#/deals" class="mobile-nav-link ${isDeals ? 'active' : ''}" style="display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span>🔥</span>
+              <span style="font-weight: 700; color: #fb923c;">${t('nav.hotDeals') || 'Hot Deals'}</span>
+            </div>
+            <span style="font-size: 0.65rem; padding: 0.12rem 0.5rem; background: linear-gradient(135deg, #ef4444, #f97316); color: #ffffff; border-radius: 999px; font-weight: 800;">BUY 1 GET 1</span>
+          </a>
           <a href="#/categories" class="mobile-nav-link ${isCategories ? 'active' : ''}">${t('nav.categories')}</a>
           <a href="#/about" class="mobile-nav-link ${isAbout ? 'active' : ''}">${t('nav.about')}</a>
           <a href="#/contact" class="mobile-nav-link ${isContact ? 'active' : ''}">${t('nav.contact')}</a>

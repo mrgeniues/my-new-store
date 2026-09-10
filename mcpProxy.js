@@ -55,12 +55,44 @@ export async function testMcpConnection({ targetUrl, secret = '' }) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-    // 1. Initial MCP Handshake (GET with Accept: text/event-stream)
-    const response = await fetch(cleanUrl, {
-      method: 'GET',
-      headers: requestHeaders,
-      signal: controller.signal
-    });
+    const isWebhookEndpoint = cleanUrl.includes('/webhook');
+
+    // If it's an n8n webhook or MCP endpoint, test appropriate method
+    let response = null;
+    let usedMethod = isWebhookEndpoint ? 'POST' : 'GET';
+
+    if (isWebhookEndpoint) {
+      response = await fetch(cleanUrl, {
+        method: 'POST',
+        headers: requestHeaders,
+        body: JSON.stringify({ action: 'ping', test: true, timestamp: Date.now() }),
+        signal: controller.signal
+      });
+    } else {
+      response = await fetch(cleanUrl, {
+        method: 'GET',
+        headers: requestHeaders,
+        signal: controller.signal
+      });
+
+      // If GET returned 404 or 405 (e.g. n8n webhook only registered for POST), retry with POST probe
+      if (response.status === 404 || response.status === 405) {
+        try {
+          const postResp = await fetch(cleanUrl, {
+            method: 'POST',
+            headers: requestHeaders,
+            body: JSON.stringify({ action: 'ping', test: true, timestamp: Date.now() }),
+            signal: controller.signal
+          });
+          if (postResp.ok || postResp.status === 200 || postResp.status === 201) {
+            response = postResp;
+            usedMethod = 'POST';
+          }
+        } catch (e) {
+          // ignore post retry error and continue with initial response
+        }
+      }
+    }
 
     const elapsed = Date.now() - startTime;
     clearTimeout(timeoutId);
@@ -69,15 +101,17 @@ export async function testMcpConnection({ targetUrl, secret = '' }) {
     const httpStatusText = response.statusText || (httpStatus === 200 ? 'OK' : 'Error');
 
     // Handle HTTP Statuses with clear diagnostic feedback
-    if (httpStatus === 200) {
-      // Successfully connected to MCP SSE Stream
+    if (httpStatus === 200 || httpStatus === 201) {
+      // Successfully connected
       return {
         connected: true,
         status: 200,
         statusText: 'OK',
         latencyMs: elapsed,
-        message: '✓ Connected! n8n MCP Server Trigger is live and accepted the MCP SSE connection.',
-        protocol: 'MCP/1.0 (SSE + JSON-RPC 2.0)',
+        message: isWebhookEndpoint || usedMethod === 'POST'
+          ? '✓ Connected! n8n Webhook / MCP Server is live and accepted the test request.'
+          : '✓ Connected! n8n MCP Server Trigger is live and accepted the MCP SSE connection.',
+        protocol: isWebhookEndpoint ? 'n8n Webhook (HTTP POST)' : 'MCP/1.0 (SSE + JSON-RPC 2.0)',
         url: cleanUrl
       };
     }
@@ -93,15 +127,15 @@ export async function testMcpConnection({ targetUrl, secret = '' }) {
     }
 
     if (httpStatus === 404) {
-      const isTest = cleanUrl.includes('mcp-test');
+      const isTest = cleanUrl.includes('mcp-test') || cleanUrl.includes('webhook-test');
       return {
         connected: false,
         status: 404,
         statusText: 'Not Found / Inactive',
         latencyMs: elapsed,
         error: isTest 
-          ? 'HTTP 404: n8n is not listening for test events right now. Click the orange "Execute step" button in n8n first, then test again immediately.'
-          : 'HTTP 404: The MCP Production URL was not found or the n8n workflow is currently inactive (turn workflow ON in n8n).'
+          ? 'HTTP 404: n8n is not listening for test events right now. Click the orange "Listen for test event" / "Execute step" button in n8n first, then test again immediately.'
+          : 'HTTP 404: The Production URL was not found or the n8n workflow is currently inactive (turn workflow ON in n8n).'
       };
     }
 

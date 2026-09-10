@@ -6,6 +6,7 @@ export default {
     brand: 'اے آئی ٹولز اسٹور',
     home: 'ہوم',
     allTools: 'تمام ٹولز',
+    hotDeals: 'ہاٹ ڈیلز 🔥',
     categories: 'اقسام',
     about: 'ہمارے بارے میں',
     contact: 'رابطہ کریں',

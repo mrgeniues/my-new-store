@@ -505,6 +505,391 @@ class ToolsApiService {
     if (error) throw error;
     return this.normalizeTool(data);
   }
+
+  // =========================================================================
+  // HOT DEALS SYSTEM (Buy 1 Get 1 Free, Custom Quantities, Special Promos)
+  // =========================================================================
+
+  normalizeHotDeal(row) {
+    if (!row) return null;
+    return {
+      id: row.id,
+      slug: row.slug || row.id,
+      name: row.name || 'Untitled Hot Deal',
+      image: row.image || '',
+      shortDescription: row.short_description || '',
+      description: row.full_description || row.short_description || '',
+      fullDescription: row.full_description || '',
+      category: row.category || 'Hot Deals',
+      offerLabel: row.offer_label || 'BUY 1 GET 1 FREE',
+      buyQuantity: typeof row.buy_quantity === 'number' ? row.buy_quantity : (parseInt(row.buy_quantity, 10) || 1),
+      freeQuantity: typeof row.free_quantity === 'number' ? row.free_quantity : (parseInt(row.free_quantity, 10) || 1),
+      dealPrice: row.deal_price || row.price || 'PKR 1,999 /mo',
+      price: row.deal_price || row.price || 'PKR 1,999 /mo',
+      regularPrice: row.regular_price || 'PKR 3,999 /mo',
+      countryPricing: (typeof row.country_pricing === 'object' && row.country_pricing !== null) ? row.country_pricing : {},
+      badge: row.badge || '🔥 HOT DEAL',
+      badgeType: row.badge_type || 'hot',
+      themeColor: row.theme_color || 'orange',
+      stockLeft: row.stock_left || 'Limited slots available',
+      features: Array.isArray(row.features) ? row.features : [
+        'Instant WhatsApp Concierge Activation',
+        'Official private seat or workspace invite',
+        '24/7 dedicated replacement warranty',
+        'Full commercial usage rights'
+      ],
+      howToUse: Array.isArray(row.how_to_use) ? row.how_to_use : [],
+      tutorialVideoUrl: row.tutorial_video_url || '',
+      toolUrl: row.tool_url || '#',
+      whatsappUrl: row.whatsapp_url || defaultWhatsappUrl,
+      rating: typeof row.rating === 'number' ? row.rating : 4.9,
+      userCount: row.users_count || '2.5K claimed',
+      featured: Boolean(row.featured !== false),
+      active: Boolean(row.active !== false),
+      sortOrder: row.sort_order || 0,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+  }
+
+  // Public Query: Get all active hot deals
+  async getHotDeals() {
+    const STORAGE_KEY = 'ai_tools_hot_deals_v1';
+    let deals = [];
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('hot_deals')
+          .select('*')
+          .eq('active', true)
+          .order('sort_order', { ascending: true })
+          .order('created_at', { ascending: false });
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          deals = data.map((r) => this.normalizeHotDeal(r));
+        }
+      } catch (err) {
+        console.warn('[AI Tools Store] Hot deals Supabase notice:', err.message);
+      }
+    }
+
+    // Fallback to local storage or starter dataset
+    if (deals.length === 0) {
+      try {
+        const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        if (Array.isArray(local) && local.length > 0) {
+          deals = local.filter((d) => d.active !== false);
+        }
+      } catch (e) {}
+    }
+
+    if (deals.length === 0) {
+      deals = DEFAULT_HOT_DEALS;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_HOT_DEALS));
+      } catch (e) {}
+    }
+
+    return deals;
+  }
+
+  // Public Query: Get single hot deal
+  async getHotDealById(idOrSlug) {
+    if (!idOrSlug) return null;
+    const all = await this.getHotDeals();
+    return all.find((d) => d.id === idOrSlug || d.slug === idOrSlug) || null;
+  }
+
+  // Admin Query: Get all hot deals (including inactive)
+  async adminGetHotDeals() {
+    const STORAGE_KEY = 'ai_tools_hot_deals_v1';
+    let deals = [];
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('hot_deals')
+          .select('*')
+          .order('sort_order', { ascending: true })
+          .order('created_at', { ascending: false });
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          deals = data.map((r) => this.normalizeHotDeal(r));
+        }
+      } catch (err) {
+        console.warn('[AI Tools Store] Admin hot deals Supabase notice:', err.message);
+      }
+    }
+
+    if (deals.length === 0) {
+      try {
+        const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        if (Array.isArray(local) && local.length > 0) {
+          deals = local.map((d) => this.normalizeHotDeal(d));
+        }
+      } catch (e) {}
+    }
+
+    if (deals.length === 0) {
+      deals = DEFAULT_HOT_DEALS;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_HOT_DEALS));
+      } catch (e) {}
+    }
+
+    return deals;
+  }
+
+  // Admin Mutation: Add or Update Hot Deal
+  async adminSaveHotDeal(dealData) {
+    if (!dealData || !dealData.name || !dealData.name.trim()) {
+      throw new Error('Deal product name is required.');
+    }
+
+    const STORAGE_KEY = 'ai_tools_hot_deals_v1';
+    const cleanName = dealData.name.trim();
+    const cleanSlug = (dealData.slug || cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')).trim();
+
+    const normalized = {
+      id: dealData.id || ('deal-' + Date.now().toString(36)),
+      name: cleanName,
+      slug: cleanSlug,
+      image: dealData.image || '',
+      shortDescription: dealData.shortDescription || dealData.description || '',
+      fullDescription: dealData.fullDescription || dealData.description || '',
+      category: dealData.category || 'Promotions & Bundles',
+      offerLabel: dealData.offerLabel || 'BUY 1 GET 1 FREE',
+      buyQuantity: parseInt(dealData.buyQuantity, 10) || 1,
+      freeQuantity: parseInt(dealData.freeQuantity, 10) || 1,
+      dealPrice: dealData.dealPrice || dealData.price || 'PKR 1,999 /mo',
+      price: dealData.dealPrice || dealData.price || 'PKR 1,999 /mo',
+      regularPrice: dealData.regularPrice || 'PKR 3,999 /mo',
+      countryPricing: (dealData.countryPricing && typeof dealData.countryPricing === 'object') ? dealData.countryPricing : {},
+      badge: dealData.badge || `🔥 ${dealData.offerLabel || 'HOT DEAL'}`,
+      badgeType: dealData.badgeType || 'hot',
+      themeColor: dealData.themeColor || 'orange',
+      stockLeft: dealData.stockLeft || 'Only 5 slots left today',
+      features: Array.isArray(dealData.features) ? dealData.features : [
+        'Instant WhatsApp Concierge Activation',
+        'Official private seat or workspace invite',
+        '24/7 dedicated replacement warranty'
+      ],
+      howToUse: Array.isArray(dealData.howToUse) ? dealData.howToUse : [],
+      tutorialVideoUrl: dealData.tutorialVideoUrl || '',
+      toolUrl: dealData.toolUrl || '#',
+      whatsappUrl: dealData.whatsappUrl || defaultWhatsappUrl,
+      rating: parseFloat(dealData.rating) || 4.9,
+      userCount: dealData.userCount || '2.8K claimed',
+      featured: Boolean(dealData.featured !== false),
+      active: Boolean(dealData.active !== false),
+      sortOrder: parseInt(dealData.sortOrder, 10) || 0,
+      updatedAt: new Date().toISOString()
+    };
+
+    // 1. Try Supabase
+    if (isSupabaseConfigured) {
+      try {
+        const payload = {
+          name: normalized.name,
+          slug: normalized.slug,
+          image: normalized.image,
+          short_description: normalized.shortDescription,
+          full_description: normalized.fullDescription,
+          category: normalized.category,
+          offer_label: normalized.offerLabel,
+          buy_quantity: normalized.buyQuantity,
+          free_quantity: normalized.freeQuantity,
+          deal_price: normalized.dealPrice,
+          regular_price: normalized.regularPrice,
+          country_pricing: normalized.countryPricing,
+          badge: normalized.badge,
+          badge_type: normalized.badgeType,
+          theme_color: normalized.themeColor,
+          stock_left: normalized.stockLeft,
+          rating: normalized.rating,
+          users_count: normalized.userCount,
+          featured: normalized.featured,
+          active: normalized.active,
+          sort_order: normalized.sortOrder,
+          updated_at: new Date().toISOString()
+        };
+
+        if (dealData.id && dealData.id.length > 20 && dealData.id.includes('-')) {
+          await supabase.from('hot_deals').update(payload).eq('id', dealData.id);
+        } else {
+          await supabase.from('hot_deals').upsert(payload, { onConflict: 'slug' });
+        }
+      } catch (err) {
+        console.warn('[AI Tools Store] Supabase hot deal save notice:', err.message);
+      }
+    }
+
+    // 2. Persist to localStorage
+    try {
+      let localDeals = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      if (localDeals.length === 0) localDeals = [...DEFAULT_HOT_DEALS];
+
+      const idx = localDeals.findIndex((d) => d.id === normalized.id || d.slug === normalized.slug);
+      if (idx >= 0) {
+        localDeals[idx] = { ...localDeals[idx], ...normalized };
+      } else {
+        localDeals.push(normalized);
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(localDeals));
+    } catch (e) {
+      console.warn('[AI Tools Store] localStorage save hot deal error:', e);
+    }
+
+    return normalized;
+  }
+
+  // Admin Mutation: Delete Hot Deal
+  async adminDeleteHotDeal(id) {
+    const STORAGE_KEY = 'ai_tools_hot_deals_v1';
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('hot_deals').delete().eq('id', id);
+      } catch (err) {
+        console.warn('[AI Tools Store] Supabase hot deal delete notice:', err.message);
+      }
+    }
+
+    try {
+      let localDeals = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      localDeals = localDeals.filter((d) => d.id !== id && d.slug !== id);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(localDeals));
+    } catch (e) {}
+
+    return true;
+  }
+
+  // Admin Mutation: Toggle Hot Deal Active Status
+  async adminToggleHotDealActive(id, active) {
+    const STORAGE_KEY = 'ai_tools_hot_deals_v1';
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('hot_deals').update({ active }).eq('id', id);
+      } catch (err) {
+        console.warn('[AI Tools Store] Supabase hot deal toggle notice:', err.message);
+      }
+    }
+
+    try {
+      let localDeals = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      const deal = localDeals.find((d) => d.id === id || d.slug === id);
+      if (deal) {
+        deal.active = active;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(localDeals));
+      }
+    } catch (e) {}
+
+    return true;
+  }
 }
+
+export const DEFAULT_HOT_DEALS = [
+  {
+    id: 'deal-chatgpt-claude-duo',
+    name: 'ChatGPT Plus & Claude Pro Duo Bundle',
+    slug: 'chatgpt-claude-duo-bogo',
+    image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
+    shortDescription: 'Buy 1 ChatGPT Plus subscription and get 1 Claude 3.5 Sonnet Pro subscription 100% Free! Unlimited reasoning and coding power.',
+    fullDescription: 'Get the ultimate AI combo deal! Order 1 ChatGPT Plus official seat and instantly claim 1 Claude 3.5 Sonnet Pro seat completely free. Features full GPT-4o, o1 reasoning models, Artifacts, and 200K token context window.',
+    category: 'Text / Reasoning',
+    offerLabel: 'BUY 1 GET 1 FREE',
+    buyQuantity: 1,
+    freeQuantity: 1,
+    price: 'PKR 2,499 /mo',
+    dealPrice: 'PKR 2,499 /mo',
+    regularPrice: 'PKR 5,500 /mo',
+    badge: '🔥 BUY 1 GET 1 FREE',
+    badgeType: 'hot',
+    themeColor: 'orange',
+    stockLeft: 'Only 4 bundles left today',
+    rating: 4.9,
+    userCount: '3.4K claimed',
+    featured: true,
+    active: true,
+    sortOrder: 1,
+    countryPricing: {
+      'Pakistan': 'PKR 2,499 /mo',
+      'India': 'INR 1,299 /mo',
+      'United Arab Emirates': 'AED 59 /mo',
+      'Saudi Arabia': 'SAR 65 /mo',
+      'United States': 'USD $19.99 /mo',
+      'United Kingdom': 'GBP £15.99 /mo',
+      'Global': 'USD $19.99 /mo'
+    }
+  },
+  {
+    id: 'deal-midjourney-leonardo-combo',
+    name: 'Midjourney v6 & Leonardo AI Creative Pack',
+    slug: 'midjourney-leonardo-combo-bogo',
+    image: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?w=800&auto=format&fit=crop&q=80',
+    shortDescription: 'Buy 1 Midjourney v6 license and unlock 1 Leonardo AI Ultra license Free. Fast GPU hours and photorealistic rendering.',
+    fullDescription: 'Unleash your creative potential with Midjourney v6 and Leonardo AI. Generate world-class visuals, realistic portraits, and concept artwork with zero restrictions.',
+    category: 'Image / Design',
+    offerLabel: 'BUY 1 GET 1 FREE',
+    buyQuantity: 1,
+    freeQuantity: 1,
+    price: 'PKR 2,999 /mo',
+    dealPrice: 'PKR 2,999 /mo',
+    regularPrice: 'PKR 6,000 /mo',
+    badge: '🎨 BUY 1 GET 1 FREE',
+    badgeType: 'hot',
+    themeColor: 'teal',
+    stockLeft: 'Only 6 licenses remaining',
+    rating: 4.9,
+    userCount: '2.1K claimed',
+    featured: true,
+    active: true,
+    sortOrder: 2,
+    countryPricing: {
+      'Pakistan': 'PKR 2,999 /mo',
+      'India': 'INR 1,499 /mo',
+      'United Arab Emirates': 'AED 69 /mo',
+      'Saudi Arabia': 'SAR 75 /mo',
+      'United States': 'USD $24.99 /mo',
+      'United Kingdom': 'GBP £19.99 /mo',
+      'Global': 'USD $24.99 /mo'
+    }
+  },
+  {
+    id: 'deal-cursor-copilot-dev-stack',
+    name: 'Cursor Pro & GitHub Copilot Dev Stack',
+    slug: 'cursor-copilot-dev-stack-bogo',
+    image: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80',
+    shortDescription: 'Buy 1 Cursor Pro subscription and get 1 GitHub Copilot Individual license Free. 10x your development velocity.',
+    fullDescription: 'The ultimate AI coding powerhouse. AI multi-file edits, inline predictions, context-aware completions, and full repo understanding.',
+    category: 'Coding / Development',
+    offerLabel: 'BUY 1 GET 1 FREE',
+    buyQuantity: 1,
+    freeQuantity: 1,
+    price: 'PKR 3,200 /mo',
+    dealPrice: 'PKR 3,200 /mo',
+    regularPrice: 'PKR 6,500 /mo',
+    badge: '⚡ BUY 1 GET 1 FREE',
+    badgeType: 'hot',
+    themeColor: 'purple',
+    stockLeft: 'Only 3 spots available',
+    rating: 5.0,
+    userCount: '4.8K claimed',
+    featured: true,
+    active: true,
+    sortOrder: 3,
+    countryPricing: {
+      'Pakistan': 'PKR 3,200 /mo',
+      'India': 'INR 1,599 /mo',
+      'United Arab Emirates': 'AED 75 /mo',
+      'Saudi Arabia': 'SAR 79 /mo',
+      'United States': 'USD $25.99 /mo',
+      'United Kingdom': 'GBP £20.99 /mo',
+      'Global': 'USD $25.99 /mo'
+    }
+  }
+];
 
 export const toolsApi = new ToolsApiService();

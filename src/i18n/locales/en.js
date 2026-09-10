@@ -5,6 +5,7 @@ export default {
     brand: 'AI Tools Store',
     home: 'Home',
     allTools: 'All Tools',
+    hotDeals: 'Hot Deals',
     categories: 'Categories',
     about: 'About',
     contact: 'Contact',
