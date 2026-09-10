@@ -3,15 +3,23 @@ import { defaultWhatsappUrl } from './supabase.js';
 import { mcpClient } from './mcpClient.js';
 
 export const APP_SETTINGS_KEY = 'ai_tools_app_settings_v1';
-export const DEFAULT_MCP_TEST_URL = 'https://n8n-1rsy.srv1898856.hstgr.cloud/mcp-test/69318bf8-f20c-4dab-91cf-604c84ce94b1';
+export const DEFAULT_MCP_PRODUCTION_URL = 'https://n8n-1rsy.srv1898856.hstgr.cloud/webhook/0ea23bd6-b764-4bb3-a258-c6ab9969560f';
+export const DEFAULT_MCP_TEST_URL = 'https://n8n-1rsy.srv1898856.hstgr.cloud/webhook-test/0ea23bd6-b764-4bb3-a258-c6ab9969560f';
 
 export function getAppSettings() {
   try {
     const raw = localStorage.getItem(APP_SETTINGS_KEY);
     const parsed = raw ? JSON.parse(raw) : {};
+
+    // Auto-migrate legacy dead test URLs
+    let activeUrl = parsed.mcpWebhookUrl || DEFAULT_MCP_PRODUCTION_URL;
+    if (activeUrl.includes('69318bf8-f20c-4dab-91cf-604c84ce94b1') || activeUrl.includes('srv189856.')) {
+      activeUrl = DEFAULT_MCP_PRODUCTION_URL;
+    }
+
     const settings = {
-      mcpWebhookUrl: parsed.mcpWebhookUrl || DEFAULT_MCP_TEST_URL,
-      mcpUrlType: parsed.mcpUrlType || (parsed.mcpWebhookUrl?.includes('mcp-test') ? 'test' : 'production'),
+      mcpWebhookUrl: activeUrl,
+      mcpUrlType: parsed.mcpUrlType || (activeUrl.includes('-test') ? 'test' : 'production'),
       mcpSecretKey: parsed.mcpSecretKey || '',
       adminWhatsappNumber: parsed.adminWhatsappNumber || '',
       adminWhatsappUrl: parsed.adminWhatsappUrl || defaultWhatsappUrl || ''
@@ -24,8 +32,8 @@ export function getAppSettings() {
     return settings;
   } catch (e) {
     return {
-      mcpWebhookUrl: DEFAULT_MCP_TEST_URL,
-      mcpUrlType: 'test',
+      mcpWebhookUrl: DEFAULT_MCP_PRODUCTION_URL,
+      mcpUrlType: 'production',
       mcpSecretKey: '',
       adminWhatsappNumber: '',
       adminWhatsappUrl: defaultWhatsappUrl || ''

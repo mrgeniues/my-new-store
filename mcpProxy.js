@@ -211,13 +211,17 @@ export async function callMcpTool({ targetUrl, secret = '', toolName = 'submit_i
     requestHeaders['X-MCP-Secret'] = secret.trim();
   }
 
-  // Extract strictly ONLY user details from contact form
+  // Extract user details with full alias coverage
   const cleanUserData = {
     name: args.name || args.full_name || '',
+    full_name: args.name || args.full_name || '',
     email: args.email || '',
     whatsapp: args.whatsapp || args.whatsapp_number || '',
-    topic: args.topic || args.subject || '',
-    message: args.message || ''
+    whatsapp_number: args.whatsapp || args.whatsapp_number || '',
+    topic: args.topic || args.subject || 'General Inquiry',
+    subject: args.topic || args.subject || 'General Inquiry',
+    message: args.message || '',
+    submitted_at: new Date().toISOString()
   };
 
   // If the target URL is an n8n webhook (or general URL), send ONLY pure user details
@@ -236,11 +240,35 @@ export async function callMcpTool({ targetUrl, secret = '', toolName = 'submit_i
       }
     : cleanUserData;
 
-  const response = await fetch(cleanUrl, {
-    method: 'POST',
-    headers: requestHeaders,
-    body: JSON.stringify(payload)
-  });
+  let response;
+  try {
+    response = await fetch(cleanUrl, {
+      method: 'POST',
+      headers: requestHeaders,
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    if (cleanUrl.includes('/webhook-test/')) {
+      const prodUrl = cleanUrl.replace('/webhook-test/', '/webhook/');
+      response = await fetch(prodUrl, {
+        method: 'POST',
+        headers: requestHeaders,
+        body: JSON.stringify(payload)
+      });
+    } else {
+      throw err;
+    }
+  }
+
+  // Automatic retry with production URL if test URL returned 404
+  if (response.status === 404 && cleanUrl.includes('/webhook-test/')) {
+    const prodUrl = cleanUrl.replace('/webhook-test/', '/webhook/');
+    response = await fetch(prodUrl, {
+      method: 'POST',
+      headers: requestHeaders,
+      body: JSON.stringify(payload)
+    });
+  }
 
   if (!response.ok) {
     if (response.status === 406) {

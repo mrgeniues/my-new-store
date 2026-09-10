@@ -211,11 +211,17 @@ export class McpClient {
 
     const cleanUserData = {
       name: inquiryData.name || inquiryData.full_name || '',
+      full_name: inquiryData.name || inquiryData.full_name || '',
       email: inquiryData.email || '',
       whatsapp: inquiryData.whatsapp || inquiryData.whatsapp_number || '',
-      topic: inquiryData.topic || inquiryData.subject || '',
-      message: inquiryData.message || ''
+      whatsapp_number: inquiryData.whatsapp || inquiryData.whatsapp_number || '',
+      topic: inquiryData.topic || inquiryData.subject || 'General Inquiry',
+      subject: inquiryData.topic || inquiryData.subject || 'General Inquiry',
+      message: inquiryData.message || '',
+      submitted_at: new Date().toISOString()
     };
+
+    const targetEndpoint = (this.serverUrl || '').trim() || 'https://n8n-1rsy.srv1898856.hstgr.cloud/webhook/0ea23bd6-b764-4bb3-a258-c6ab9969560f';
 
     // 1. Call through backend proxy (/api/mcp/call-tool)
     try {
@@ -223,7 +229,7 @@ export class McpClient {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          targetUrl: this.serverUrl,
+          targetUrl: targetEndpoint,
           secret: this.secretKey,
           toolName: 'submit_customer_inquiry',
           args: cleanUserData
@@ -231,7 +237,8 @@ export class McpClient {
       });
 
       if (res.ok) {
-        return await res.json();
+        const json = await res.json();
+        if (json.success !== false) return json;
       }
       console.warn('[McpClient] Proxy returned HTTP ' + res.status + ', attempting direct POST...');
     } catch (proxyErr) {
@@ -239,7 +246,7 @@ export class McpClient {
     }
 
     // 2. Direct browser fetch fallback
-    const isMcpProtocol = this.serverUrl.includes('/mcp-test') || this.serverUrl.includes('/mcp/');
+    const isMcpProtocol = targetEndpoint.includes('/mcp-test') || targetEndpoint.includes('/mcp/');
     const payload = isMcpProtocol
       ? {
           jsonrpc: '2.0',
@@ -252,15 +259,41 @@ export class McpClient {
         }
       : cleanUserData;
 
-    const response = await fetch(this.serverUrl, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json, text/event-stream',
-        'Content-Type': 'application/json',
-        ...(this.secretKey ? { 'Authorization': `Bearer ${this.secretKey}`, 'X-MCP-Secret': this.secretKey } : {})
-      },
-      body: JSON.stringify(payload)
-    });
+    const reqHeaders = {
+      'Accept': 'application/json, text/event-stream',
+      'Content-Type': 'application/json',
+      ...(this.secretKey ? { 'Authorization': `Bearer ${this.secretKey}`, 'X-MCP-Secret': this.secretKey } : {})
+    };
+
+    let response;
+    try {
+      response = await fetch(targetEndpoint, {
+        method: 'POST',
+        headers: reqHeaders,
+        body: JSON.stringify(payload)
+      });
+    } catch (netErr) {
+      if (targetEndpoint.includes('/webhook-test/')) {
+        const prodUrl = targetEndpoint.replace('/webhook-test/', '/webhook/');
+        response = await fetch(prodUrl, {
+          method: 'POST',
+          headers: reqHeaders,
+          body: JSON.stringify(payload)
+        });
+      } else {
+        throw netErr;
+      }
+    }
+
+    // If test URL gave 404, immediately retry with production URL
+    if (response.status === 404 && targetEndpoint.includes('/webhook-test/')) {
+      const prodUrl = targetEndpoint.replace('/webhook-test/', '/webhook/');
+      response = await fetch(prodUrl, {
+        method: 'POST',
+        headers: reqHeaders,
+        body: JSON.stringify(payload)
+      });
+    }
 
     if (!response.ok) {
       throw new Error(`Direct POST failed with HTTP ${response.status} (${response.statusText})`);
