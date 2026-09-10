@@ -9,7 +9,7 @@ import { buildWhatsAppLink, getToolLocalizedPrice, showToast, parsePriceAndDurat
 export async function renderHotDealsPage(root, { queryParams }) {
   document.title = `🔥 Hot Deals & BOGO Offers | ${t('nav.brand')}`;
 
-  const deals = await toolsApi.getHotDeals();
+  let deals = await toolsApi.getHotDeals();
   let currentCountry = authService.getUserCountry() || 'Pakistan';
   let activeCategory = 'All';
   let searchQuery = '';
@@ -52,6 +52,7 @@ export async function renderHotDealsPage(root, { queryParams }) {
             `🔥 *HOT DEAL ORDER INQUIRY*\n` +
             `• Deal: ${deal.name}\n` +
             `• Offer: ${offerLabel} (Buy: ${buyQty} | Get Free: ${freeQty})\n` +
+            `• Validity / Duration: ${deal.duration || '1 Month'}\n` +
             `• Price: ${localizedDealPrice}\n` +
             `• Region: ${currentCountry}\n\n` +
             `Please share payment details and activate my deal access.`
@@ -83,10 +84,13 @@ export async function renderHotDealsPage(root, { queryParams }) {
                 />
                 <div style="position: absolute; inset: 0; background: linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.2) 60%, transparent 100%);"></div>
                 
-                <!-- Main Offer Badge -->
-                <div style="position: absolute; top: 12px; left: 12px; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <!-- Main Offer & Validity Badges -->
+                <div style="position: absolute; top: 12px; left: 12px; display: flex; gap: 0.4rem; flex-wrap: wrap;">
                   <span class="badge" style="background: linear-gradient(135deg, #ef4444, #f97316); color: #ffffff; font-weight: 800; font-size: 0.75rem; padding: 0.3rem 0.75rem; border-radius: 999px; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.5); letter-spacing: 0.02em;">
                     🔥 ${offerLabel}
+                  </span>
+                  <span class="badge" style="background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.5); font-weight: 800; font-size: 0.75rem; padding: 0.3rem 0.7rem; border-radius: 999px; display: inline-flex; align-items: center; gap: 0.3rem;">
+                    <span>⏳</span> <span>${deal.duration || '1 Month'}</span>
                   </span>
                 </div>
 
@@ -313,4 +317,15 @@ export async function renderHotDealsPage(root, { queryParams }) {
   }
 
   bindResetBtn();
+
+  // Supabase Real-time live update subscription
+  if (window._publicDealsRealtimeUnsub) {
+    try { window._publicDealsRealtimeUnsub(); } catch (e) {}
+  }
+  window._publicDealsRealtimeUnsub = toolsApi.subscribeToHotDeals(async () => {
+    try {
+      deals = await toolsApi.getHotDeals();
+      updateView();
+    } catch (e) {}
+  });
 }

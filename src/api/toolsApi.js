@@ -524,6 +524,7 @@ class ToolsApiService {
       offerLabel: row.offer_label || 'BUY 1 GET 1 FREE',
       buyQuantity: typeof row.buy_quantity === 'number' ? row.buy_quantity : (parseInt(row.buy_quantity, 10) || 1),
       freeQuantity: typeof row.free_quantity === 'number' ? row.free_quantity : (parseInt(row.free_quantity, 10) || 1),
+      duration: row.duration || '1 Month',
       dealPrice: row.deal_price || row.price || 'PKR 1,999 /mo',
       price: row.deal_price || row.price || 'PKR 1,999 /mo',
       regularPrice: row.regular_price || 'PKR 3,999 /mo',
@@ -552,9 +553,23 @@ class ToolsApiService {
     };
   }
 
-  // Public Query: Get all active hot deals
+  // Clean up any legacy mock hot deals from local cache
+  purgeLegacyMockDeals() {
+    const STORAGE_KEY = 'ai_tools_hot_deals_v1';
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const cached = localStorage.getItem(STORAGE_KEY);
+        if (cached && (cached.includes('deal-chatgpt-claude') || cached.includes('deal-midjourney') || cached.includes('deal-cursor'))) {
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      }
+    } catch (e) {}
+  }
+
+  // Public Query: Get all active hot deals directly from Supabase
   async getHotDeals() {
     const STORAGE_KEY = 'ai_tools_hot_deals_v1';
+    this.purgeLegacyMockDeals();
     let deals = [];
 
     if (isSupabaseConfigured) {
@@ -566,30 +581,29 @@ class ToolsApiService {
           .order('sort_order', { ascending: true })
           .order('created_at', { ascending: false });
 
-        if (!error && Array.isArray(data) && data.length > 0) {
+        if (!error && Array.isArray(data)) {
           deals = data.map((r) => this.normalizeHotDeal(r));
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(deals));
+          } catch (e) {}
+          return deals;
+        } else if (error) {
+          console.error('[AI Tools Store] Hot deals Supabase error:', error.message);
         }
       } catch (err) {
-        console.warn('[AI Tools Store] Hot deals Supabase notice:', err.message);
+        console.error('[AI Tools Store] Hot deals Supabase notice:', err.message);
       }
     }
 
-    // Fallback to local storage or starter dataset
-    if (deals.length === 0) {
-      try {
-        const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-        if (Array.isArray(local) && local.length > 0) {
-          deals = local.filter((d) => d.active !== false);
-        }
-      } catch (e) {}
-    }
-
-    if (deals.length === 0) {
-      deals = DEFAULT_HOT_DEALS;
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_HOT_DEALS));
-      } catch (e) {}
-    }
+    // Only offline fallback to actual real deals previously cached
+    try {
+      const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      if (Array.isArray(local)) {
+        deals = local
+          .filter((d) => d.active !== false && !d.id?.startsWith('deal-chatgpt') && !d.id?.startsWith('deal-midjourney') && !d.id?.startsWith('deal-cursor'))
+          .map((d) => this.normalizeHotDeal(d));
+      }
+    } catch (e) {}
 
     return deals;
   }
@@ -601,9 +615,10 @@ class ToolsApiService {
     return all.find((d) => d.id === idOrSlug || d.slug === idOrSlug) || null;
   }
 
-  // Admin Query: Get all hot deals (including inactive)
+  // Admin Query: Get all hot deals (including inactive) strictly from Supabase
   async adminGetHotDeals() {
     const STORAGE_KEY = 'ai_tools_hot_deals_v1';
+    this.purgeLegacyMockDeals();
     let deals = [];
 
     if (isSupabaseConfigured) {
@@ -614,34 +629,34 @@ class ToolsApiService {
           .order('sort_order', { ascending: true })
           .order('created_at', { ascending: false });
 
-        if (!error && Array.isArray(data) && data.length > 0) {
+        if (!error && Array.isArray(data)) {
           deals = data.map((r) => this.normalizeHotDeal(r));
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(deals));
+          } catch (e) {}
+          return deals;
+        } else if (error) {
+          console.error('[AI Tools Store] Admin hot deals Supabase error:', error.message);
         }
       } catch (err) {
-        console.warn('[AI Tools Store] Admin hot deals Supabase notice:', err.message);
+        console.error('[AI Tools Store] Admin hot deals Supabase notice:', err.message);
       }
     }
 
-    if (deals.length === 0) {
-      try {
-        const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-        if (Array.isArray(local) && local.length > 0) {
-          deals = local.map((d) => this.normalizeHotDeal(d));
-        }
-      } catch (e) {}
-    }
-
-    if (deals.length === 0) {
-      deals = DEFAULT_HOT_DEALS;
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_HOT_DEALS));
-      } catch (e) {}
-    }
+    // Only offline fallback to actual real deals previously cached
+    try {
+      const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      if (Array.isArray(local)) {
+        deals = local
+          .filter((d) => !d.id?.startsWith('deal-chatgpt') && !d.id?.startsWith('deal-midjourney') && !d.id?.startsWith('deal-cursor'))
+          .map((d) => this.normalizeHotDeal(d));
+      }
+    } catch (e) {}
 
     return deals;
   }
 
-  // Admin Mutation: Add or Update Hot Deal
+  // Admin Mutation: Add or Update Hot Deal directly in Supabase
   async adminSaveHotDeal(dealData) {
     if (!dealData || !dealData.name || !dealData.name.trim()) {
       throw new Error('Deal product name is required.');
@@ -652,7 +667,7 @@ class ToolsApiService {
     const cleanSlug = (dealData.slug || cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')).trim();
 
     const normalized = {
-      id: dealData.id || ('deal-' + Date.now().toString(36)),
+      id: dealData.id || '',
       name: cleanName,
       slug: cleanSlug,
       image: dealData.image || '',
@@ -661,21 +676,27 @@ class ToolsApiService {
       category: dealData.category || 'Promotions & Bundles',
       offerLabel: dealData.offerLabel || 'BUY 1 GET 1 FREE',
       buyQuantity: parseInt(dealData.buyQuantity, 10) || 1,
-      freeQuantity: parseInt(dealData.freeQuantity, 10) || 1,
+      freeQuantity: parseInt(dealData.freeQuantity, 10) || 0,
+      duration: dealData.duration || '1 Month',
       dealPrice: dealData.dealPrice || dealData.price || 'PKR 1,999 /mo',
       price: dealData.dealPrice || dealData.price || 'PKR 1,999 /mo',
-      regularPrice: dealData.regularPrice || 'PKR 3,999 /mo',
+      regularPrice: dealData.regularPrice || '',
       countryPricing: (dealData.countryPricing && typeof dealData.countryPricing === 'object') ? dealData.countryPricing : {},
       badge: dealData.badge || `🔥 ${dealData.offerLabel || 'HOT DEAL'}`,
       badgeType: dealData.badgeType || 'hot',
       themeColor: dealData.themeColor || 'orange',
       stockLeft: dealData.stockLeft || 'Only 5 slots left today',
       features: Array.isArray(dealData.features) ? dealData.features : [
-        'Instant WhatsApp Concierge Activation',
-        'Official private seat or workspace invite',
-        '24/7 dedicated replacement warranty'
+        'Instant activation via WhatsApp concierge',
+        'Official private account or invite link',
+        '24/7 dedicated replacement warranty',
+        'Full commercial license included'
       ],
-      howToUse: Array.isArray(dealData.howToUse) ? dealData.howToUse : [],
+      howToUse: Array.isArray(dealData.howToUse) ? dealData.howToUse : [
+        'Order your deal via WhatsApp with one click',
+        'Receive your activation credentials instantly',
+        'Enjoy full access with your bonus free tool/quantity'
+      ],
       tutorialVideoUrl: dealData.tutorialVideoUrl || '',
       toolUrl: dealData.toolUrl || '#',
       whatsappUrl: dealData.whatsappUrl || defaultWhatsappUrl,
@@ -687,72 +708,81 @@ class ToolsApiService {
       updatedAt: new Date().toISOString()
     };
 
-    // 1. Try Supabase
+    // 1. Direct Supabase Mutation
     if (isSupabaseConfigured) {
-      try {
-        const payload = {
-          name: normalized.name,
-          slug: normalized.slug,
-          image: normalized.image,
-          short_description: normalized.shortDescription,
-          full_description: normalized.fullDescription,
-          category: normalized.category,
-          offer_label: normalized.offerLabel,
-          buy_quantity: normalized.buyQuantity,
-          free_quantity: normalized.freeQuantity,
-          deal_price: normalized.dealPrice,
-          regular_price: normalized.regularPrice,
-          country_pricing: normalized.countryPricing,
-          badge: normalized.badge,
-          badge_type: normalized.badgeType,
-          theme_color: normalized.themeColor,
-          stock_left: normalized.stockLeft,
-          rating: normalized.rating,
-          users_count: normalized.userCount,
-          featured: normalized.featured,
-          active: normalized.active,
-          sort_order: normalized.sortOrder,
-          updated_at: new Date().toISOString()
-        };
+      const payload = {
+        name: normalized.name,
+        slug: normalized.slug,
+        image: normalized.image,
+        short_description: normalized.shortDescription,
+        full_description: normalized.fullDescription,
+        category: normalized.category,
+        offer_label: normalized.offerLabel,
+        buy_quantity: normalized.buyQuantity,
+        free_quantity: normalized.freeQuantity,
+        duration: normalized.duration,
+        deal_price: normalized.dealPrice,
+        regular_price: normalized.regularPrice,
+        country_pricing: normalized.countryPricing,
+        badge: normalized.badge,
+        badge_type: normalized.badgeType,
+        theme_color: normalized.themeColor,
+        stock_left: normalized.stockLeft,
+        rating: normalized.rating,
+        users_count: normalized.userCount,
+        featured: normalized.featured,
+        active: normalized.active,
+        sort_order: normalized.sortOrder,
+        updated_at: new Date().toISOString()
+      };
 
-        if (dealData.id && dealData.id.length > 20 && dealData.id.includes('-')) {
-          await supabase.from('hot_deals').update(payload).eq('id', dealData.id);
-        } else {
-          await supabase.from('hot_deals').upsert(payload, { onConflict: 'slug' });
-        }
-      } catch (err) {
-        console.warn('[AI Tools Store] Supabase hot deal save notice:', err.message);
-      }
-    }
+      const isUUID = Boolean(dealData.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dealData.id));
+      let res;
 
-    // 2. Persist to localStorage
-    try {
-      let localDeals = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      if (localDeals.length === 0) localDeals = [...DEFAULT_HOT_DEALS];
-
-      const idx = localDeals.findIndex((d) => d.id === normalized.id || d.slug === normalized.slug);
-      if (idx >= 0) {
-        localDeals[idx] = { ...localDeals[idx], ...normalized };
+      if (isUUID) {
+        res = await supabase
+          .from('hot_deals')
+          .update(payload)
+          .eq('id', dealData.id)
+          .select()
+          .single();
       } else {
-        localDeals.push(normalized);
+        res = await supabase
+          .from('hot_deals')
+          .insert(payload)
+          .select()
+          .single();
       }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(localDeals));
-    } catch (e) {
-      console.warn('[AI Tools Store] localStorage save hot deal error:', e);
+
+      if (res.error) {
+        console.error('[AI Tools Store] Supabase hot deal save error:', res.error);
+        throw new Error(res.error.message || 'Failed to save deal to Supabase.');
+      }
+
+      if (res.data) {
+        const saved = this.normalizeHotDeal(res.data);
+        try {
+          let localDeals = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+          localDeals = localDeals.filter((d) => d.id !== saved.id && d.slug !== saved.slug);
+          localDeals.push(saved);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(localDeals));
+        } catch (e) {}
+        return saved;
+      }
     }
 
     return normalized;
   }
 
-  // Admin Mutation: Delete Hot Deal
+  // Admin Mutation: Delete Hot Deal directly from Supabase
   async adminDeleteHotDeal(id) {
     const STORAGE_KEY = 'ai_tools_hot_deals_v1';
 
     if (isSupabaseConfigured) {
-      try {
-        await supabase.from('hot_deals').delete().eq('id', id);
-      } catch (err) {
-        console.warn('[AI Tools Store] Supabase hot deal delete notice:', err.message);
+      const { error } = await supabase.from('hot_deals').delete().eq('id', id);
+      if (error) {
+        console.error('[AI Tools Store] Supabase hot deal delete error:', error);
+        throw new Error(error.message || 'Failed to delete deal from Supabase.');
       }
     }
 
@@ -765,15 +795,19 @@ class ToolsApiService {
     return true;
   }
 
-  // Admin Mutation: Toggle Hot Deal Active Status
+  // Admin Mutation: Toggle Hot Deal Active Status directly in Supabase
   async adminToggleHotDealActive(id, active) {
     const STORAGE_KEY = 'ai_tools_hot_deals_v1';
 
     if (isSupabaseConfigured) {
-      try {
-        await supabase.from('hot_deals').update({ active }).eq('id', id);
-      } catch (err) {
-        console.warn('[AI Tools Store] Supabase hot deal toggle notice:', err.message);
+      const { error } = await supabase
+        .from('hot_deals')
+        .update({ active, updated_at: new Date().toISOString() })
+        .eq('id', id);
+
+      if (error) {
+        console.error('[AI Tools Store] Supabase hot deal toggle error:', error);
+        throw new Error(error.message || 'Failed to update deal status in Supabase.');
       }
     }
 
@@ -788,108 +822,38 @@ class ToolsApiService {
 
     return true;
   }
-}
 
-export const DEFAULT_HOT_DEALS = [
-  {
-    id: 'deal-chatgpt-claude-duo',
-    name: 'ChatGPT Plus & Claude Pro Duo Bundle',
-    slug: 'chatgpt-claude-duo-bogo',
-    image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
-    shortDescription: 'Buy 1 ChatGPT Plus subscription and get 1 Claude 3.5 Sonnet Pro subscription 100% Free! Unlimited reasoning and coding power.',
-    fullDescription: 'Get the ultimate AI combo deal! Order 1 ChatGPT Plus official seat and instantly claim 1 Claude 3.5 Sonnet Pro seat completely free. Features full GPT-4o, o1 reasoning models, Artifacts, and 200K token context window.',
-    category: 'Text / Reasoning',
-    offerLabel: 'BUY 1 GET 1 FREE',
-    buyQuantity: 1,
-    freeQuantity: 1,
-    price: 'PKR 2,499 /mo',
-    dealPrice: 'PKR 2,499 /mo',
-    regularPrice: 'PKR 5,500 /mo',
-    badge: '🔥 BUY 1 GET 1 FREE',
-    badgeType: 'hot',
-    themeColor: 'orange',
-    stockLeft: 'Only 4 bundles left today',
-    rating: 4.9,
-    userCount: '3.4K claimed',
-    featured: true,
-    active: true,
-    sortOrder: 1,
-    countryPricing: {
-      'Pakistan': 'PKR 2,499 /mo',
-      'India': 'INR 1,299 /mo',
-      'United Arab Emirates': 'AED 59 /mo',
-      'Saudi Arabia': 'SAR 65 /mo',
-      'United States': 'USD $19.99 /mo',
-      'United Kingdom': 'GBP £15.99 /mo',
-      'Global': 'USD $19.99 /mo'
-    }
-  },
-  {
-    id: 'deal-midjourney-leonardo-combo',
-    name: 'Midjourney v6 & Leonardo AI Creative Pack',
-    slug: 'midjourney-leonardo-combo-bogo',
-    image: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?w=800&auto=format&fit=crop&q=80',
-    shortDescription: 'Buy 1 Midjourney v6 license and unlock 1 Leonardo AI Ultra license Free. Fast GPU hours and photorealistic rendering.',
-    fullDescription: 'Unleash your creative potential with Midjourney v6 and Leonardo AI. Generate world-class visuals, realistic portraits, and concept artwork with zero restrictions.',
-    category: 'Image / Design',
-    offerLabel: 'BUY 1 GET 1 FREE',
-    buyQuantity: 1,
-    freeQuantity: 1,
-    price: 'PKR 2,999 /mo',
-    dealPrice: 'PKR 2,999 /mo',
-    regularPrice: 'PKR 6,000 /mo',
-    badge: '🎨 BUY 1 GET 1 FREE',
-    badgeType: 'hot',
-    themeColor: 'teal',
-    stockLeft: 'Only 6 licenses remaining',
-    rating: 4.9,
-    userCount: '2.1K claimed',
-    featured: true,
-    active: true,
-    sortOrder: 2,
-    countryPricing: {
-      'Pakistan': 'PKR 2,999 /mo',
-      'India': 'INR 1,499 /mo',
-      'United Arab Emirates': 'AED 69 /mo',
-      'Saudi Arabia': 'SAR 75 /mo',
-      'United States': 'USD $24.99 /mo',
-      'United Kingdom': 'GBP £19.99 /mo',
-      'Global': 'USD $24.99 /mo'
-    }
-  },
-  {
-    id: 'deal-cursor-copilot-dev-stack',
-    name: 'Cursor Pro & GitHub Copilot Dev Stack',
-    slug: 'cursor-copilot-dev-stack-bogo',
-    image: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80',
-    shortDescription: 'Buy 1 Cursor Pro subscription and get 1 GitHub Copilot Individual license Free. 10x your development velocity.',
-    fullDescription: 'The ultimate AI coding powerhouse. AI multi-file edits, inline predictions, context-aware completions, and full repo understanding.',
-    category: 'Coding / Development',
-    offerLabel: 'BUY 1 GET 1 FREE',
-    buyQuantity: 1,
-    freeQuantity: 1,
-    price: 'PKR 3,200 /mo',
-    dealPrice: 'PKR 3,200 /mo',
-    regularPrice: 'PKR 6,500 /mo',
-    badge: '⚡ BUY 1 GET 1 FREE',
-    badgeType: 'hot',
-    themeColor: 'purple',
-    stockLeft: 'Only 3 spots available',
-    rating: 5.0,
-    userCount: '4.8K claimed',
-    featured: true,
-    active: true,
-    sortOrder: 3,
-    countryPricing: {
-      'Pakistan': 'PKR 3,200 /mo',
-      'India': 'INR 1,599 /mo',
-      'United Arab Emirates': 'AED 75 /mo',
-      'Saudi Arabia': 'SAR 79 /mo',
-      'United States': 'USD $25.99 /mo',
-      'United Kingdom': 'GBP £20.99 /mo',
-      'Global': 'USD $25.99 /mo'
+  // Supabase Real-time listener for Hot Deals
+  subscribeToHotDeals(callback) {
+    if (!isSupabaseConfigured || typeof window === 'undefined') return () => {};
+
+    try {
+      const channel = supabase
+        .channel(`hot_deals_realtime_${Math.random().toString(36).substring(2, 8)}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'hot_deals' },
+          (payload) => {
+            if (typeof callback === 'function') {
+              callback(payload);
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        try {
+          supabase.removeChannel(channel);
+        } catch (e) {}
+      };
+    } catch (err) {
+      console.warn('[AI Tools Store] Supabase realtime subscription error:', err);
+      return () => {};
     }
   }
-];
+}
+
+// Zero fake/mock fallback deals - only real database rows
+export const DEFAULT_HOT_DEALS = [];
 
 export const toolsApi = new ToolsApiService();

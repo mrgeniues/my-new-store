@@ -1153,6 +1153,23 @@ export async function renderAdminDashboardPage(root) {
   // Bind initial hot deals table events
   bindHotDealsTableEvents(hotDeals, root, tools);
 
+  // Real-time Hot Deals Live Sync
+  if (window._adminDealsRealtimeUnsub) {
+    try { window._adminDealsRealtimeUnsub(); } catch (e) {}
+  }
+  window._adminDealsRealtimeUnsub = toolsApi.subscribeToHotDeals(async () => {
+    try {
+      hotDeals = await toolsApi.adminGetHotDeals();
+      const container = document.getElementById('admin-deals-table-container');
+      const badge = document.getElementById('deals-admin-count-badge');
+      if (badge) badge.textContent = hotDeals.length;
+      if (container) {
+        container.innerHTML = renderHotDealsTableHtml(hotDeals, adminPricingCountry);
+        bindHotDealsTableEvents(hotDeals, root, tools);
+      }
+    } catch (e) {}
+  });
+
   // Add Deal button click handlers
   document.getElementById('admin-add-deal-btn')?.addEventListener('click', () => {
     openHotDealEditorModal(null, root, tools);
@@ -3103,9 +3120,14 @@ function renderHotDealsTableHtml(dealsList, targetCountry = 'Pakistan') {
                 </div>
               </td>
               <td>
-                <span class="badge" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(249, 115, 22, 0.3)); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.45); font-weight: 800; font-size: 0.75rem; padding: 0.25rem 0.65rem;">
-                  🔥 ${offerLabel}
-                </span>
+                <div style="display: flex; flex-direction: column; gap: 0.35rem; align-items: flex-start;">
+                  <span class="badge" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(249, 115, 22, 0.3)); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.45); font-weight: 800; font-size: 0.75rem; padding: 0.25rem 0.65rem;">
+                    🔥 ${offerLabel}
+                  </span>
+                  <span style="display: inline-flex; align-items: center; gap: 0.3rem; background: rgba(139, 92, 246, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.35); font-weight: 700; font-size: 0.72rem; padding: 0.15rem 0.5rem; border-radius: 6px;">
+                    ⏳ ${d.duration || '1 Month'}
+                  </span>
+                </div>
               </td>
               <td>
                 <div style="display: flex; align-items: center; gap: 0.4rem;">
@@ -3208,6 +3230,7 @@ function openHotDealEditorModal(deal = null, root, toolsList = []) {
     id: '',
     name: '',
     slug: '',
+    duration: deal?.duration || '1 Month',
     category: 'Promotions & Bundles',
     offerLabel: 'BUY 1 GET 1 FREE',
     buyQuantity: 1,
@@ -3305,6 +3328,60 @@ function openHotDealEditorModal(deal = null, root, toolsList = []) {
             <button type="button" class="currency-chip preset-offer-chip" data-offer="BUY 1 GET 2 FREE" data-buy="1" data-free="2" style="font-size: 0.72rem; padding: 0.2rem 0.6rem;">Buy 1 Get 2 Free</button>
             <button type="button" class="currency-chip preset-offer-chip" data-offer="BUY 3 GET 2 FREE" data-buy="3" data-free="2" style="font-size: 0.72rem; padding: 0.2rem 0.6rem;">Buy 3 Get 2 Free</button>
             <button type="button" class="currency-chip preset-offer-chip" data-offer="FLASH SALE 50% OFF" data-buy="1" data-free="0" style="font-size: 0.72rem; padding: 0.2rem 0.6rem;">50% Off Flash</button>
+          </div>
+        </div>
+
+        <!-- OFFER VALIDITY & DURATION (Days / Months / Years / Lifetime) -->
+        <div style="background: rgba(30, 41, 59, 0.55); border: 1.5px solid rgba(168, 85, 247, 0.4); border-radius: 14px; padding: 1.15rem; margin-bottom: 1.25rem;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div style="font-size: 0.88rem; font-weight: 800; color: #c084fc; display: flex; align-items: center; gap: 0.4rem;">
+              <span>⏳</span> <span>Offer Validity & Duration (Days / Months / Year) *</span>
+            </div>
+            <span style="font-size: 0.72rem; color: #94a3b8;">Kitny din, month, ya saal ke liye offer hai</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 1rem; align-items: flex-end;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label">Duration / Validity Period *</label>
+              <input 
+                type="text" 
+                id="deal-duration" 
+                class="form-input" 
+                value="${targetDeal.duration || '1 Month'}" 
+                placeholder="e.g. 18 Months, 1 Month, 1 Year, 30 Days, Lifetime" 
+                required 
+              />
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label">Quick Period Picker</label>
+              <select id="deal-duration-preset-select" class="form-input" style="cursor: pointer;">
+                <option value="">-- Select Period --</option>
+                <option value="7 Days">7 Days (Weekly)</option>
+                <option value="15 Days">15 Days (Half-Month)</option>
+                <option value="30 Days">30 Days</option>
+                <option value="1 Month">1 Month</option>
+                <option value="3 Months">3 Months (Quarterly)</option>
+                <option value="6 Months">6 Months (Half-Year)</option>
+                <option value="1 Year">1 Year (12 Months)</option>
+                <option value="18 Months">18 Months (1.5 Years)</option>
+                <option value="2 Years">2 Years</option>
+                <option value="Lifetime">Lifetime Access</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Quick Duration Preset Chips -->
+          <div style="display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; margin-top: 0.75rem;">
+            <span style="font-size: 0.72rem; color: var(--text-muted);">Quick Presets:</span>
+            <button type="button" class="currency-chip preset-duration-chip" data-duration="7 Days" style="font-size: 0.72rem; padding: 0.2rem 0.6rem;">7 Days</button>
+            <button type="button" class="currency-chip preset-duration-chip" data-duration="15 Days" style="font-size: 0.72rem; padding: 0.2rem 0.6rem;">15 Days</button>
+            <button type="button" class="currency-chip preset-duration-chip" data-duration="1 Month" style="font-size: 0.72rem; padding: 0.2rem 0.6rem;">1 Month</button>
+            <button type="button" class="currency-chip preset-duration-chip" data-duration="3 Months" style="font-size: 0.72rem; padding: 0.2rem 0.6rem;">3 Months</button>
+            <button type="button" class="currency-chip preset-duration-chip" data-duration="6 Months" style="font-size: 0.72rem; padding: 0.2rem 0.6rem;">6 Months</button>
+            <button type="button" class="currency-chip preset-duration-chip" data-duration="1 Year" style="font-size: 0.72rem; padding: 0.2rem 0.6rem;">1 Year</button>
+            <button type="button" class="currency-chip preset-duration-chip" data-duration="18 Months" style="font-size: 0.72rem; padding: 0.2rem 0.6rem; border-color: #fb923c; color: #fb923c;">18 Months</button>
+            <button type="button" class="currency-chip preset-duration-chip" data-duration="Lifetime" style="font-size: 0.72rem; padding: 0.2rem 0.6rem; border-color: #34d399; color: #34d399;">Lifetime</button>
           </div>
         </div>
 
@@ -3453,6 +3530,26 @@ function openHotDealEditorModal(deal = null, root, toolsList = []) {
     });
   }
 
+  // Preset duration chips & dropdown listener
+  const durationInput = document.getElementById('deal-duration');
+  const durationSelect = document.getElementById('deal-duration-preset-select');
+  if (durationSelect && durationInput) {
+    durationSelect.addEventListener('change', () => {
+      if (durationSelect.value) {
+        durationInput.value = durationSelect.value;
+      }
+    });
+  }
+
+  document.querySelectorAll('.preset-duration-chip').forEach((chip) => {
+    chip.onclick = () => {
+      if (durationInput) {
+        durationInput.value = chip.dataset.duration;
+        if (durationSelect) durationSelect.value = chip.dataset.duration;
+      }
+    };
+  });
+
   // Preset offer chips listener
   document.querySelectorAll('.preset-offer-chip').forEach((chip) => {
     chip.onclick = () => {
@@ -3500,6 +3597,7 @@ function openHotDealEditorModal(deal = null, root, toolsList = []) {
       offerLabel: document.getElementById('deal-offer-label').value.trim(),
       buyQuantity: parseInt(document.getElementById('deal-buy-qty').value, 10) || 1,
       freeQuantity: parseInt(document.getElementById('deal-free-qty').value, 10) || 0,
+      duration: document.getElementById('deal-duration')?.value.trim() || '1 Month',
       dealPrice: basePrice,
       price: basePrice,
       regularPrice: document.getElementById('deal-regular-price').value.trim(),

@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS public.hot_deals (
   offer_label TEXT NOT NULL DEFAULT 'Buy 1 Get 1 Free',
   buy_quantity INTEGER NOT NULL DEFAULT 1,
   free_quantity INTEGER NOT NULL DEFAULT 1,
+  duration TEXT DEFAULT '1 Month', -- e.g. 7 Days, 1 Month, 3 Months, 6 Months, 1 Year, 18 Months, Lifetime
   
   -- Pricing & Multi-Currency Support
   deal_price TEXT NOT NULL DEFAULT 'PKR 1,999 /mo',
@@ -64,29 +65,54 @@ CREATE INDEX IF NOT EXISTS idx_hot_deals_slug ON public.hot_deals (slug);
 -- 3. Row Level Security (RLS)
 ALTER TABLE public.hot_deals ENABLE ROW LEVEL SECURITY;
 
--- Allow anyone (public/guest) to view active hot deals
-CREATE POLICY "Public can view active hot deals"
+-- 1. Read Policy: Allow anyone to view hot deals
+DROP POLICY IF EXISTS "Public can view active hot deals" ON public.hot_deals;
+DROP POLICY IF EXISTS "Public can view hot deals" ON public.hot_deals;
+CREATE POLICY "Public can view hot deals"
   ON public.hot_deals
   FOR SELECT
-  USING (active = true);
+  TO public
+  USING (true);
 
--- Allow authenticated admins to do all operations (Select, Insert, Update, Delete)
-CREATE POLICY "Admins have full access to hot_deals"
+-- 2. Insert Policy
+DROP POLICY IF EXISTS "Admins have full access to hot_deals" ON public.hot_deals;
+DROP POLICY IF EXISTS "Enable insert for hot_deals" ON public.hot_deals;
+CREATE POLICY "Enable insert for hot_deals"
   ON public.hot_deals
-  FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
-    )
-  );
+  FOR INSERT
+  TO public
+  WITH CHECK (true);
+
+-- 3. Update Policy
+DROP POLICY IF EXISTS "Enable update for hot_deals" ON public.hot_deals;
+CREATE POLICY "Enable update for hot_deals"
+  ON public.hot_deals
+  FOR UPDATE
+  TO public
+  USING (true)
+  WITH CHECK (true);
+
+-- 4. Delete Policy
+DROP POLICY IF EXISTS "Enable delete for hot_deals" ON public.hot_deals;
+CREATE POLICY "Enable delete for hot_deals"
+  ON public.hot_deals
+  FOR DELETE
+  TO public
+  USING (true);
+
+-- 4. Enable Supabase Realtime Replication for instant live sync
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'hot_deals'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.hot_deals;
+  END IF;
+EXCEPTION
+  WHEN OTHERS THEN
+    NULL; -- Ignore if publication or privileges differ
+END $$;
 
 -- Sample initial Hot Deal: Buy 1 Get 1 Free ChatGPT & Claude Pro Bundle
 INSERT INTO public.hot_deals (
