@@ -467,16 +467,20 @@ export function renderDiscountsManagerHtml(tools, hotDeals, appSettings, targetC
 
           <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
             <button type="button" class="quick-amount-chip preset-global-chip" data-val="10">10%</button>
-            <button type="button" class="quick-amount-chip preset-global-chip" data-val="15">15%</button>
             <button type="button" class="quick-amount-chip preset-global-chip" data-val="20">20%</button>
-            <button type="button" class="quick-amount-chip preset-global-chip" data-val="25">25%</button>
             <button type="button" class="quick-amount-chip preset-global-chip" data-val="30">30%</button>
             <button type="button" class="quick-amount-chip preset-global-chip" data-val="50">50%</button>
+            <button type="button" class="quick-amount-chip preset-global-chip" data-val="70">70%</button>
           </div>
 
-          <button type="submit" id="btn-save-global-discount" class="btn btn-primary" style="background: linear-gradient(135deg, #ef4444, #f97316); border: none; padding: 0.7rem 1.6rem; font-weight: 800; margin-left: auto;">
-            Save Global Discount
-          </button>
+          <div style="display: flex; gap: 0.6rem; align-items: center; margin-left: auto; flex-wrap: wrap;">
+            <button type="submit" id="btn-save-global-discount" class="btn btn-primary" style="background: linear-gradient(135deg, #ef4444, #f97316); border: none; padding: 0.7rem 1.6rem; font-weight: 800; box-shadow: 0 0 20px rgba(239, 68, 68, 0.45);">
+              ⚡ Apply &amp; Save to ALL Tools
+            </button>
+            <button type="button" id="btn-reset-all-discounts" class="btn btn-secondary" style="border-color: rgba(239, 68, 68, 0.4); color: #fca5a5; padding: 0.7rem 1.15rem; font-weight: 700;">
+              Reset All (0%)
+            </button>
+          </div>
         </form>
       </div>
 
@@ -649,37 +653,118 @@ export function renderDiscountsTableRows(tools, hotDeals, targetCountry = 'Pakis
 }
 
 export function bindDiscountsManagerEvents(tools, hotDeals, root, targetCountry = 'Pakistan', refreshCallback) {
-  // Global Discount Form
+  const globalToggle = document.getElementById('global-discount-toggle');
+  const valInput = document.getElementById('global-discount-val');
   const globalForm = document.getElementById('global-discount-form');
-  if (globalForm) {
-    globalForm.onsubmit = (e) => {
-      e.preventDefault();
-      const isActive = document.getElementById('global-discount-toggle').checked;
-      const percentVal = parseInt(document.getElementById('global-discount-val').value, 10) || 0;
+  const saveBtn = document.getElementById('btn-save-global-discount');
+  const resetBtn = document.getElementById('btn-reset-all-discounts');
 
-      saveAppSettings({
-        globalDiscountActive: isActive,
-        globalDiscountPercent: percentVal
-      });
-
-      showToast(
-        isActive 
-          ? `✓ Global Storewide Discount of ${percentVal}% OFF is now LIVE across the store!` 
-          : `✓ Global Storewide Discount disabled.`,
-        'success'
-      );
-
-      if (typeof refreshCallback === 'function') refreshCallback('discounts');
-    };
+  // Auto-enable toggle when user enters a positive number
+  if (valInput) {
+    valInput.addEventListener('input', () => {
+      const val = parseInt(valInput.value, 10) || 0;
+      if (globalToggle && val > 0) globalToggle.checked = true;
+    });
   }
 
   // Preset chips for global discount
   document.querySelectorAll('.preset-global-chip').forEach((chip) => {
     chip.onclick = () => {
-      const valInput = document.getElementById('global-discount-val');
       if (valInput) valInput.value = chip.dataset.val;
+      if (globalToggle) globalToggle.checked = true;
     };
   });
+
+  // Global Discount Form Submit -> Applies to ALL tools in DB, Local State, and settings
+  if (globalForm) {
+    globalForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const isActive = globalToggle ? globalToggle.checked : true;
+      const rawVal = parseInt(valInput ? valInput.value : 0, 10) || 0;
+      const percentVal = isActive ? Math.max(0, Math.min(100, rawVal)) : 0;
+
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Applying to all products...';
+      }
+
+      try {
+        await toolsApi.adminApplyGlobalDiscountToAllProducts(percentVal);
+
+        // Update in-memory collections so instant re-renders reflect new values
+        tools.forEach((t) => {
+          t.discountPercent = percentVal;
+          t.discount_percent = percentVal;
+        });
+        hotDeals.forEach((d) => {
+          d.discountPercent = percentVal;
+          d.discount_percent = percentVal;
+        });
+
+        // Update global settings
+        saveAppSettings({
+          globalDiscountActive: percentVal > 0,
+          globalDiscountPercent: percentVal
+        });
+
+        showToast(
+          percentVal > 0
+            ? `✓ Successfully applied ${percentVal}% OFF to ALL tools & deals and updated their settings!`
+            : `✓ Storewide discount disabled and reset to 0%.`,
+          'success'
+        );
+
+        if (typeof refreshCallback === 'function') {
+          refreshCallback('discounts');
+        }
+      } catch (err) {
+        showToast(`Failed to update products: ${err.message}`, 'error');
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.textContent = '⚡ Apply & Save to ALL Tools';
+        }
+      }
+    };
+  }
+
+  // Reset all discounts button
+  if (resetBtn) {
+    resetBtn.onclick = async () => {
+      if (!confirm('Are you sure you want to reset all product discounts to 0% (Regular Price)?')) return;
+      resetBtn.disabled = true;
+      resetBtn.textContent = 'Resetting...';
+
+      try {
+        await toolsApi.adminApplyGlobalDiscountToAllProducts(0);
+        tools.forEach((t) => {
+          t.discountPercent = 0;
+          t.discount_percent = 0;
+        });
+        hotDeals.forEach((d) => {
+          d.discountPercent = 0;
+          d.discount_percent = 0;
+        });
+
+        saveAppSettings({
+          globalDiscountActive: false,
+          globalDiscountPercent: 0
+        });
+
+        if (valInput) valInput.value = 0;
+        if (globalToggle) globalToggle.checked = false;
+
+        showToast('✓ All product discounts reset to 0% (Normal prices restored).', 'info');
+
+        if (typeof refreshCallback === 'function') {
+          refreshCallback('discounts');
+        }
+      } catch (err) {
+        showToast(`Error resetting discounts: ${err.message}`, 'error');
+        resetBtn.disabled = false;
+        resetBtn.textContent = 'Reset All (0%)';
+      }
+    };
+  }
 
   // Search filter
   const searchInput = document.getElementById('discount-table-search-input');

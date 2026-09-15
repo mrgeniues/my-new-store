@@ -175,20 +175,20 @@ export function renderToolCard(rawTool) {
         </div>
       </div>
 
-      <!-- Price & Primary Buy Now Row (Side-by-Side as in Reference) -->
+      <!-- Price & Primary Buy Now Row (Side-by-Side with Clean Adjusted Layout) -->
       <div class="card-price-buy-row">
         <div class="card-price-block">
           ${discountInfo.hasDiscount ? `
-            <div style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.15rem;">
-              <span style="font-size: 0.78rem; text-decoration: line-through; color: var(--text-muted); opacity: 0.85;">${discountInfo.originalAmount}</span>
-              <span style="font-size: 0.68rem; font-weight: 800; background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); padding: 0.05rem 0.35rem; border-radius: 4px;">-${discountInfo.discountPercent}%</span>
+            <div class="card-price-strike-row">
+              <span class="card-price-original">${discountInfo.originalAmount}</span>
+              <span class="card-price-discount-pill">-${discountInfo.discountPercent}%</span>
             </div>
           ` : ''}
-          <div style="display: flex; align-items: baseline; gap: 0.35rem; flex-wrap: wrap;">
-            <span class="price-currency" style="${discountInfo.hasDiscount ? 'color: #38bdf8;' : ''}">${discountInfo.discountedAmount}</span>
+          <div class="card-price-main-row">
+            <span class="price-currency ${discountInfo.hasDiscount ? 'has-discount' : ''}">${discountInfo.discountedAmount}</span>
+            ${discountInfo.periodHtml ? `<span class="price-period-wrap">${discountInfo.periodHtml}</span>` : ''}
             <span class="price-country-badge" title="Live rate for ${userCountry}">${getCountryFlag(userCountry)}</span>
           </div>
-          ${discountInfo.periodHtml}
         </div>
 
         <a 

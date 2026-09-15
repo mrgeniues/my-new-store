@@ -1116,6 +1116,50 @@ class ToolsApiService {
     }
     return { id: dealId, discountPercent: discount };
   }
+
+  // Apply discount percentage to ALL tools and deals in Supabase database & local state
+  async adminApplyGlobalDiscountToAllProducts(discountPercent) {
+    const discount = Math.max(0, Math.min(100, parseInt(discountPercent, 10) || 0));
+
+    if (isSupabaseConfigured) {
+      // 1. Update all tools in Supabase
+      try {
+        const { error: toolsErr } = await supabase
+          .from('tools')
+          .update({ discount_percent: discount })
+          .not('id', 'is', null);
+        if (toolsErr) console.warn('[Supabase] Tools discount batch update notice:', toolsErr.message);
+      } catch (e) {
+        console.warn('[Supabase] Exception updating all tools discount:', e);
+      }
+
+      // 2. Update all hot_deals in Supabase
+      try {
+        const { error: dealsErr } = await supabase
+          .from('hot_deals')
+          .update({ discount_percent: discount })
+          .not('id', 'is', null);
+        if (dealsErr) console.warn('[Supabase] Deals discount batch update notice:', dealsErr.message);
+      } catch (e) {
+        console.warn('[Supabase] Exception updating all deals discount:', e);
+      }
+    }
+
+    // 3. Update localStorage fallback caches if present
+    try {
+      const STORAGE_KEY = 'ai_tools_hot_deals_v1';
+      const localDeals = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      if (Array.isArray(localDeals) && localDeals.length > 0) {
+        localDeals.forEach((d) => {
+          d.discountPercent = discount;
+          d.discount_percent = discount;
+        });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(localDeals));
+      }
+    } catch (e) {}
+
+    return discount;
+  }
 }
 
 // Zero fake/mock fallback deals - only real database rows
