@@ -31,6 +31,7 @@ class ToolsApiService {
       featured: Boolean(row.featured),
       active: Boolean(row.active),
       sortOrder: row.sort_order || 0,
+      discountPercent: typeof row.discount_percent === 'number' ? row.discount_percent : (parseInt(row.discount_percent, 10) || 0),
       createdAt: row.created_at,
       updatedAt: row.updated_at
     };
@@ -451,7 +452,8 @@ class ToolsApiService {
       users_count: toolData.userCount || toolData.users_count || '10.5K',
       featured: Boolean(toolData.featured),
       active: toolData.active !== false,
-      sort_order: parseInt(toolData.sortOrder || toolData.sort_order, 10) || 0
+      sort_order: parseInt(toolData.sortOrder || toolData.sort_order, 10) || 0,
+      discount_percent: parseInt(toolData.discountPercent ?? toolData.discount_percent, 10) || 0
     };
 
     if (toolData.id && toolData.id.length > 20) {
@@ -548,6 +550,7 @@ class ToolsApiService {
       featured: Boolean(row.featured !== false),
       active: Boolean(row.active !== false),
       sortOrder: row.sort_order || 0,
+      discountPercent: typeof row.discount_percent === 'number' ? row.discount_percent : (parseInt(row.discount_percent, 10) || 0),
       createdAt: row.created_at,
       updatedAt: row.updated_at
     };
@@ -733,6 +736,7 @@ class ToolsApiService {
         featured: normalized.featured,
         active: normalized.active,
         sort_order: normalized.sortOrder,
+        discount_percent: parseInt(dealData.discountPercent ?? dealData.discount_percent, 10) || 0,
         updated_at: new Date().toISOString()
       };
 
@@ -850,6 +854,267 @@ class ToolsApiService {
       console.warn('[AI Tools Store] Supabase realtime subscription error:', err);
       return () => {};
     }
+  }
+
+  // =========================================================================
+  // UPCOMING TOOLS SYSTEM
+  // =========================================================================
+
+  normalizeUpcomingTool(row) {
+    if (!row) return null;
+    return {
+      id: row.id,
+      title: row.title || row.name || 'Untitled Upcoming Tool',
+      slug: row.slug || (row.title ? row.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') : row.id),
+      image: row.image || '',
+      description: row.description || '',
+      expectedDate: row.expected_date || 'Coming Soon',
+      badge: row.badge || '🚀 UPCOMING',
+      active: row.active !== false,
+      sortOrder: row.sort_order || 0,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+  }
+
+  // Public Query: Get active upcoming tools
+  async getUpcomingTools() {
+    const STORAGE_KEY = 'ai_tools_upcoming_v1';
+    let list = [];
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('upcoming_tools')
+          .select('*')
+          .eq('active', true)
+          .order('sort_order', { ascending: true })
+          .order('created_at', { ascending: false });
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          list = data.map((r) => this.normalizeUpcomingTool(r));
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+          } catch (e) {}
+          return list;
+        }
+      } catch (err) {
+        console.warn('[AI Tools Store] Upcoming tools fetch notice:', err);
+      }
+    }
+
+    try {
+      const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      if (Array.isArray(local) && local.length > 0) {
+        return local.filter((item) => item.active !== false).map((item) => this.normalizeUpcomingTool(item));
+      }
+    } catch (e) {}
+
+    return [
+      {
+        id: 'upcoming-sora-pro',
+        title: 'Sora Video Creator Pro',
+        image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
+        description: 'Next-generation text-to-photorealistic-video engine with 1080p high definition scene composition and AI voice synchronization.',
+        expectedDate: 'Launching Soon',
+        badge: '🚀 UPCOMING',
+        active: true,
+        sortOrder: 1
+      }
+    ];
+  }
+
+  // Admin Query: Get all upcoming tools
+  async adminGetUpcomingTools() {
+    const STORAGE_KEY = 'ai_tools_upcoming_v1';
+    let list = [];
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('upcoming_tools')
+          .select('*')
+          .order('sort_order', { ascending: true })
+          .order('created_at', { ascending: false });
+
+        if (!error && Array.isArray(data)) {
+          list = data.map((r) => this.normalizeUpcomingTool(r));
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+          } catch (e) {}
+          return list;
+        }
+      } catch (err) {
+        console.warn('[AI Tools Store] Admin upcoming tools error:', err);
+      }
+    }
+
+    try {
+      const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      if (Array.isArray(local) && local.length > 0) {
+        return local.map((item) => this.normalizeUpcomingTool(item));
+      }
+    } catch (e) {}
+
+    return [
+      {
+        id: 'upcoming-sora-pro',
+        title: 'Sora Video Creator Pro',
+        image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
+        description: 'Next-generation text-to-photorealistic-video engine with 1080p high definition scene composition and AI voice synchronization.',
+        expectedDate: 'Launching Soon',
+        badge: '🚀 UPCOMING',
+        active: true,
+        sortOrder: 1
+      }
+    ];
+  }
+
+  // Admin Mutation: Save upcoming tool
+  async adminSaveUpcomingTool(data) {
+    if (!data || !data.title || !data.title.trim()) {
+      throw new Error('Title is required for upcoming tool.');
+    }
+
+    const STORAGE_KEY = 'ai_tools_upcoming_v1';
+    const cleanTitle = data.title.trim();
+    const cleanSlug = (data.slug || cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-')).trim();
+
+    const payload = {
+      title: cleanTitle,
+      slug: cleanSlug,
+      image: data.image || '',
+      description: (data.description || '').trim(),
+      expected_date: data.expectedDate || data.expected_date || 'Coming Soon',
+      badge: data.badge || '🚀 UPCOMING',
+      active: data.active !== false,
+      sort_order: parseInt(data.sortOrder || data.sort_order, 10) || 0,
+      updated_at: new Date().toISOString()
+    };
+
+    let saved = null;
+    const isUUID = Boolean(data.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.id));
+
+    if (isSupabaseConfigured) {
+      let res;
+      if (isUUID) {
+        res = await supabase
+          .from('upcoming_tools')
+          .update(payload)
+          .eq('id', data.id)
+          .select()
+          .single();
+      } else {
+        res = await supabase
+          .from('upcoming_tools')
+          .insert(payload)
+          .select()
+          .single();
+      }
+
+      if (!res.error && res.data) {
+        saved = this.normalizeUpcomingTool(res.data);
+      } else if (res.error) {
+        console.error('[AI Tools Store] Supabase upcoming tool save error:', res.error);
+      }
+    }
+
+    if (!saved) {
+      saved = {
+        id: data.id || `upcoming-${Date.now()}`,
+        ...payload,
+        expectedDate: payload.expected_date,
+        sortOrder: payload.sort_order
+      };
+    }
+
+    try {
+      let local = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      local = local.filter((item) => item.id !== saved.id);
+      local.push(saved);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(local));
+    } catch (e) {}
+
+    return saved;
+  }
+
+  // Admin Mutation: Delete upcoming tool
+  async adminDeleteUpcomingTool(id) {
+    const STORAGE_KEY = 'ai_tools_upcoming_v1';
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('upcoming_tools').delete().eq('id', id);
+      } catch (err) {
+        console.warn('Supabase delete error:', err);
+      }
+    }
+
+    try {
+      let local = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      local = local.filter((item) => item.id !== id);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(local));
+    } catch (e) {}
+
+    return true;
+  }
+
+  // Admin Mutation: Toggle active
+  async adminToggleUpcomingToolActive(id, active) {
+    const STORAGE_KEY = 'ai_tools_upcoming_v1';
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('upcoming_tools').update({ active }).eq('id', id);
+      } catch (err) {}
+    }
+
+    try {
+      let local = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      const item = local.find((i) => i.id === id);
+      if (item) {
+        item.active = active;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(local));
+      }
+    } catch (e) {}
+
+    return true;
+  }
+
+  // Quick helper to update discount percentage for any tool
+  async adminUpdateToolDiscount(toolId, discountPercent) {
+    const discount = Math.max(0, Math.min(100, parseInt(discountPercent, 10) || 0));
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('tools')
+          .update({ discount_percent: discount })
+          .eq('id', toolId)
+          .select()
+          .single();
+        if (!error && data) return this.normalizeTool(data);
+      } catch (e) {
+        console.warn('Update tool discount error:', e);
+      }
+    }
+    return { id: toolId, discountPercent: discount };
+  }
+
+  // Quick helper to update discount percentage for any hot deal
+  async adminUpdateDealDiscount(dealId, discountPercent) {
+    const discount = Math.max(0, Math.min(100, parseInt(discountPercent, 10) || 0));
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('hot_deals')
+          .update({ discount_percent: discount })
+          .eq('id', dealId)
+          .select()
+          .single();
+        if (!error && data) return this.normalizeHotDeal(data);
+      } catch (e) {
+        console.warn('Update deal discount error:', e);
+      }
+    }
+    return { id: dealId, discountPercent: discount };
   }
 }
 

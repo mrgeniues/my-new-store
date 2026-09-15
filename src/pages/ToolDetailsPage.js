@@ -4,7 +4,7 @@ import { renderNavbar, attachNavbarEvents } from '../components/Navbar.js';
 import { renderHowToUse } from '../components/HowToUse.js';
 import { renderToolCard } from '../components/ToolCard.js';
 import { renderFooter } from '../components/Footer.js';
-import { getToolIconSvg, buildWhatsAppLink, getToolLocalizedPrice, getCountryFlag, renderFormattedPoints, parsePriceAndDuration } from '../utils/helpers.js';
+import { getToolIconSvg, buildWhatsAppLink, getToolLocalizedPrice, getCountryFlag, renderFormattedPoints, parsePriceAndDuration, calculateToolDiscountPrice } from '../utils/helpers.js';
 import { requireAuth } from '../utils/authGuard.js';
 import { t, getLocalizedTool } from '../i18n/i18n.js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
@@ -39,9 +39,10 @@ export async function renderToolDetailsPage(root, { pathParams }) {
   const tool = getLocalizedTool(rawTool);
   document.title = `${tool.name} | ${t('nav.brand')}`;
 
-  // Get user country & localized country pricing
+  // Get user country & localized country pricing and discount
   const userCountry = authService.getUserCountry() || 'Pakistan';
-  const localizedPrice = getToolLocalizedPrice(tool, userCountry);
+  const discountInfo = calculateToolDiscountPrice(tool, userCountry);
+  const localizedPrice = discountInfo.discountedPrice;
 
   // Get similar tools
   const allTools = await toolsApi.getTools();
@@ -50,7 +51,7 @@ export async function renderToolDetailsPage(root, { pathParams }) {
     .slice(0, 4);
 
   // Dynamic WhatsApp URL strictly from backend/API with localized price
-  const dynamicWhatsAppBuyUrl = buildWhatsAppLink(tool.whatsappUrl, tool.name, localizedPrice, userCountry);
+  const dynamicWhatsAppBuyUrl = buildWhatsAppLink(tool.whatsappUrl, tool.name, discountInfo.discountedPrice, userCountry, discountInfo.originalPrice, discountInfo.discountPercent);
 
   // Localized price and period parsing
   const { amount, periodText } = parsePriceAndDuration(localizedPrice, `/${t('card.perMonth') || 'month'}`);
@@ -91,6 +92,11 @@ export async function renderToolDetailsPage(root, { pathParams }) {
               <h1>${tool.name}</h1>
               <div class="details-badges-row">
                 <span class="badge badge-popular">${tool.category}</span>
+                ${discountInfo.hasDiscount ? `
+                  <span class="badge" style="background: linear-gradient(135deg, #ef4444, #f97316); color: #ffffff; font-weight: 800; font-size: 0.78rem; padding: 0.25rem 0.7rem; border-radius: 999px; box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);">
+                    🔥 ${discountInfo.discountPercent}% OFF
+                  </span>
+                ` : ''}
                 ${tool.badge ? `<span class="badge badge-hot">★ ${tool.badge}</span>` : ''}
                 <span style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; color: #fbbf24; font-weight: 700;">
                   ★ ${tool.rating || 4.9} <span style="color: var(--text-muted); font-weight: 400;">(${tool.reviewCount || 150}+ reviews)</span>
@@ -135,8 +141,14 @@ export async function renderToolDetailsPage(root, { pathParams }) {
         <aside class="details-sidebar">
           <div class="purchase-card-sticky">
             <div class="purchase-price-block">
+              ${discountInfo.hasDiscount ? `
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                  <span style="font-size: 0.88rem; text-decoration: line-through; color: var(--text-muted);">${discountInfo.originalAmount}</span>
+                  <span style="font-size: 0.72rem; font-weight: 800; background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); padding: 0.1rem 0.4rem; border-radius: 4px;">-${discountInfo.discountPercent}% OFF</span>
+                </div>
+              ` : ''}
               <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
-                <div class="purchase-price-val">${amount}</div>
+                <div class="purchase-price-val" style="${discountInfo.hasDiscount ? 'color: #38bdf8;' : ''}">${discountInfo.discountedAmount}</div>
                 <span class="price-country-badge" style="font-size: 0.78rem; padding: 0.2rem 0.55rem;" title="Price for ${userCountry}">
                   ${getCountryFlag(userCountry)} ${userCountry}
                 </span>

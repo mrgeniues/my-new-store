@@ -8,6 +8,7 @@ import { renderCategoriesPage } from './pages/CategoriesPage.js';
 import { renderAboutPage } from './pages/AboutPage.js';
 import { renderContactPage } from './pages/ContactPage.js';
 import { renderHotDealsPage } from './pages/HotDealsPage.js';
+import { renderUpcomingToolsPage } from './pages/UpcomingToolsPage.js';
 import { renderAdminDashboardPage } from './pages/AdminDashboardPage.js';
 
 // Define Application Routes
@@ -15,6 +16,7 @@ const routes = {
   '/': renderHomePage,
   '/tools': renderAllToolsPage,
   '/deals': renderHotDealsPage,
+  '/upcoming': renderUpcomingToolsPage,
   '/tool/:id': renderToolDetailsPage,
   '/categories': renderCategoriesPage,
   '/about': renderAboutPage,
@@ -49,6 +51,13 @@ async function initApp() {
 
   // Seamlessly re-render current route on country/geo-pricing change for instant live verification
   window.addEventListener('ai_tools_country_changed', () => {
+    if (appRouter) {
+      appRouter.handleRouting();
+    }
+  });
+
+  // Seamlessly re-render current route on discount or global settings change
+  window.addEventListener('ai_tools_settings_changed', () => {
     if (appRouter) {
       appRouter.handleRouting();
     }

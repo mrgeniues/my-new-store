@@ -6,6 +6,7 @@ export default {
     home: 'Home',
     allTools: 'All Tools',
     hotDeals: 'Hot Deals',
+    upcoming: 'Upcoming Tools',
     categories: 'Categories',
     about: 'About',
     contact: 'Contact',

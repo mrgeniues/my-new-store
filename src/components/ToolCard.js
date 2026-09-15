@@ -1,5 +1,5 @@
 // AI Tools Store - Premium Animated Tool Cards (Matching Exact Reference Image)
-import { getToolIconSvg, buildWhatsAppLink, showToast, getToolLocalizedPrice, getCountryFlag, renderFormattedPoints, parsePriceAndDuration } from '../utils/helpers.js';
+import { getToolIconSvg, buildWhatsAppLink, showToast, getToolLocalizedPrice, getCountryFlag, renderFormattedPoints, parsePriceAndDuration, calculateToolDiscountPrice } from '../utils/helpers.js';
 import { requireAuth } from '../utils/authGuard.js';
 import { t, getLocalizedTool } from '../i18n/i18n.js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
@@ -50,8 +50,9 @@ export function renderToolCard(rawTool) {
   const tool = getLocalizedTool(rawTool);
   const iconSvg = getToolIconSvg(tool.id, tool.name);
   const userCountry = authService.getUserCountry() || 'Pakistan';
-  const localizedPrice = getToolLocalizedPrice(tool, userCountry);
-  const buyLink = buildWhatsAppLink(tool.whatsappUrl, tool.name, localizedPrice, userCountry);
+  const discountInfo = calculateToolDiscountPrice(tool, userCountry);
+  const localizedPrice = discountInfo.discountedPrice;
+  const buyLink = buildWhatsAppLink(tool.whatsappUrl, tool.name, discountInfo.discountedPrice, userCountry, discountInfo.originalPrice, discountInfo.discountPercent);
   const isFav = getFavorites().includes(tool.id);
 
   // Theme identification (purple, teal, or blue)
@@ -136,9 +137,14 @@ export function renderToolCard(rawTool) {
         </div>
       `}
 
-      <!-- Category Pill Badge -->
-      <div class="card-badge-row">
+      <!-- Category Pill Badge & Optional Discount Badge -->
+      <div class="card-badge-row" style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap;">
         <span class="card-category-pill">${tool.category}</span>
+        ${discountInfo.hasDiscount ? `
+          <span class="badge" style="background: linear-gradient(135deg, #ef4444, #f97316); color: #ffffff; font-weight: 800; font-size: 0.72rem; padding: 0.2rem 0.6rem; border-radius: 999px; box-shadow: 0 0 12px rgba(239, 68, 68, 0.5); letter-spacing: 0.03em;">
+            🔥 ${discountInfo.discountPercent}% OFF
+          </span>
+        ` : ''}
       </div>
 
       <!-- Tool Title & Description (Bullet Points Supported) -->
@@ -172,11 +178,17 @@ export function renderToolCard(rawTool) {
       <!-- Price & Primary Buy Now Row (Side-by-Side as in Reference) -->
       <div class="card-price-buy-row">
         <div class="card-price-block">
+          ${discountInfo.hasDiscount ? `
+            <div style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.15rem;">
+              <span style="font-size: 0.78rem; text-decoration: line-through; color: var(--text-muted); opacity: 0.85;">${discountInfo.originalAmount}</span>
+              <span style="font-size: 0.68rem; font-weight: 800; background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); padding: 0.05rem 0.35rem; border-radius: 4px;">-${discountInfo.discountPercent}%</span>
+            </div>
+          ` : ''}
           <div style="display: flex; align-items: baseline; gap: 0.35rem; flex-wrap: wrap;">
-            <span class="price-currency">${amount}</span>
+            <span class="price-currency" style="${discountInfo.hasDiscount ? 'color: #38bdf8;' : ''}">${discountInfo.discountedAmount}</span>
             <span class="price-country-badge" title="Live rate for ${userCountry}">${getCountryFlag(userCountry)}</span>
           </div>
-          ${periodHtml}
+          ${discountInfo.periodHtml}
         </div>
 
         <a 

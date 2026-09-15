@@ -4,9 +4,16 @@ import { authService } from '../lib/auth.js';
 import { toolsApi } from '../api/toolsApi.js';
 import { renderNavbar, attachNavbarEvents } from '../components/Navbar.js';
 import { renderFooter } from '../components/Footer.js';
-import { showToast, getCountryFlag, getToolLocalizedPrice } from '../utils/helpers.js';
+import { showToast, getCountryFlag, getToolLocalizedPrice, calculateToolDiscountPrice } from '../utils/helpers.js';
 import { getAppSettings, saveAppSettings, testMcpWebhook, DEFAULT_MCP_TEST_URL } from '../lib/settings.js';
 import { mcpClient } from '../lib/mcpClient.js';
+import { 
+  renderUpcomingToolsTableHtml, 
+  bindUpcomingToolsEvents, 
+  openUpcomingToolModal, 
+  renderDiscountsManagerHtml, 
+  bindDiscountsManagerEvents 
+} from './adminUpcomingAndDiscounts.js';
 
 let activeTab = 'tools'; // 'tools' | 'users' | 'analytics' | 'settings'
 let adminPricingCountry = 'Pakistan';
@@ -183,6 +190,13 @@ export async function renderAdminDashboardPage(root) {
     console.warn('Could not load hot deals:', dErr);
   }
 
+  let upcomingTools = [];
+  try {
+    upcomingTools = await toolsApi.adminGetUpcomingTools();
+  } catch (upErr) {
+    console.warn('Could not load upcoming tools:', upErr);
+  }
+
   const activeCount = tools.filter((t) => t.active).length;
   const featuredCount = tools.filter((t) => t.featured).length;
   const categoriesList = categories.map((c) => c.name);
@@ -218,6 +232,9 @@ export async function renderAdminDashboardPage(root) {
           <button id="admin-add-deal-top-btn" class="btn btn-secondary" style="font-size: 0.88rem; padding: 0.65rem 1.25rem; font-weight: 700; border-color: rgba(249, 115, 22, 0.4); color: #fb923c;">
             🔥 + Add Hot Deal
           </button>
+          <button id="admin-add-upcoming-top-btn" class="btn btn-secondary" style="font-size: 0.88rem; padding: 0.65rem 1.25rem; font-weight: 700; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;">
+            🚀 + Add Upcoming Tool
+          </button>
           <button id="admin-add-cat-top-btn" class="btn btn-secondary" style="font-size: 0.88rem; padding: 0.65rem 1.25rem; font-weight: 700; border-color: rgba(168, 85, 247, 0.4); color: #c084fc;">
             + Add Category
           </button>
@@ -247,6 +264,16 @@ export async function renderAdminDashboardPage(root) {
           <span>Hot Deals &amp; BOGO (${hotDeals.length})</span>
         </button>
 
+        <button class="admin-tab-btn ${activeTab === 'upcoming' ? 'active' : ''}" data-tab="upcoming" style="${activeTab === 'upcoming' ? 'border-color: #38bdf8;' : ''}">
+          <span style="font-size: 1.05rem;">🚀</span>
+          <span>Upcoming Tools (${upcomingTools.length})</span>
+        </button>
+
+        <button class="admin-tab-btn ${activeTab === 'discounts' ? 'active' : ''}" data-tab="discounts" style="${activeTab === 'discounts' ? 'border-color: #ef4444;' : ''}">
+          <span style="font-size: 1.05rem;">🏷️</span>
+          <span>Discounts &amp; % OFF</span>
+        </button>
+
         <button class="admin-tab-btn ${activeTab === 'categories' ? 'active' : ''}" data-tab="categories">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
@@ -274,7 +301,7 @@ export async function renderAdminDashboardPage(root) {
         <button class="admin-tab-btn ${activeTab === 'settings' ? 'active' : ''}" data-tab="settings">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
             <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
           <span>Store & WhatsApp Settings</span>
         </button>
@@ -501,6 +528,79 @@ export async function renderAdminDashboardPage(root) {
           <div id="admin-deals-table-container">
             ${renderHotDealsTableHtml(hotDeals, adminPricingCountry)}
           </div>
+        </div>
+      </div>
+
+      <!-- TAB UPCOMING TOOLS -->
+      <div id="tab-content-upcoming" style="${activeTab === 'upcoming' ? 'display: block;' : 'display: none;'}">
+        <div class="kpi-row" style="margin-bottom: 2rem;">
+          <div class="kpi-card">
+            <div class="kpi-info">
+              <h4>Total Upcoming Tools</h4>
+              <div class="kpi-number" id="upcoming-total-count">${upcomingTools.length}</div>
+              <div class="kpi-delta" style="color: var(--accent-cyan);">In Pre-Launch Pipeline</div>
+            </div>
+            <div class="kpi-icon-box" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 1.4rem;">
+              🚀
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-info">
+              <h4>Active on Storefront</h4>
+              <div class="kpi-number">${upcomingTools.filter((t) => t.active !== false).length}</div>
+              <div class="kpi-delta" style="color: var(--accent-mint);">Visible on /upcoming</div>
+            </div>
+            <div class="kpi-icon-box" style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-size: 1.4rem;">
+              ✓
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-filter-bar">
+          <div style="display: flex; gap: 0.75rem; align-items: center; flex: 1; max-width: 450px;">
+            <input 
+              type="text" 
+              id="upcoming-admin-search-input" 
+              class="admin-search-input" 
+              placeholder="Search upcoming tools by title or description..." 
+              style="width: 100%;"
+            />
+          </div>
+
+          <div style="display: flex; gap: 0.75rem; align-items: center;">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">
+              Total <strong id="upcoming-admin-count-badge" style="color: var(--text-pure);">${upcomingTools.length}</strong> upcoming tools
+            </div>
+            <button id="admin-add-upcoming-btn" class="btn btn-primary" style="font-size: 0.88rem; padding: 0.65rem 1.35rem; font-weight: 700; background: linear-gradient(135deg, #0284c7, #38bdf8); border: none;">
+              🚀 + Add Upcoming Tool
+            </button>
+          </div>
+        </div>
+
+        <div class="admin-table-card">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
+            <div>
+              <h3 style="font-size: 1.15rem; color: var(--text-pure); font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+                <span>Upcoming Tools Roadmap</span>
+                <span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); font-size: 0.72rem; font-weight: 700;">
+                  Picture + Title + Description
+                </span>
+              </h3>
+            </div>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Syncs with /upcoming page</span>
+          </div>
+
+          <div id="admin-upcoming-table-container">
+            ${renderUpcomingToolsTableHtml(upcomingTools)}
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB DISCOUNTS & OFFERS -->
+      <div id="tab-content-discounts" style="${activeTab === 'discounts' ? 'display: block;' : 'display: none;'}">
+        <div id="admin-discounts-container">
+          ${renderDiscountsManagerHtml(tools, hotDeals, appSettings, adminPricingCountry)}
         </div>
       </div>
 
@@ -999,7 +1099,7 @@ export async function renderAdminDashboardPage(root) {
       document.querySelectorAll('.admin-tab-btn').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
 
-      ['tools', 'deals', 'categories', 'users', 'analytics', 'settings'].forEach((tName) => {
+      ['tools', 'deals', 'upcoming', 'discounts', 'categories', 'users', 'analytics', 'settings'].forEach((tName) => {
         const el = document.getElementById(`tab-content-${tName}`);
         if (el) el.style.display = tName === tab ? 'block' : 'none';
       });
@@ -1176,6 +1276,25 @@ export async function renderAdminDashboardPage(root) {
   });
   document.getElementById('admin-add-deal-top-btn')?.addEventListener('click', () => {
     openHotDealEditorModal(null, root, tools);
+  });
+
+  // Upcoming Tools Events & Add button click handler
+  bindUpcomingToolsEvents(upcomingTools, root, (tab) => {
+    activeTab = tab || 'upcoming';
+    renderAdminDashboardPage(root);
+  });
+
+  document.getElementById('admin-add-upcoming-top-btn')?.addEventListener('click', () => {
+    openUpcomingToolModal(null, root, (tab) => {
+      activeTab = tab || 'upcoming';
+      renderAdminDashboardPage(root);
+    });
+  });
+
+  // Discounts Manager Events
+  bindDiscountsManagerEvents(tools, hotDeals, root, adminPricingCountry, (tab) => {
+    activeTab = tab || 'discounts';
+    renderAdminDashboardPage(root);
   });
 
   // Admin Sign Out button
@@ -2498,6 +2617,39 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
           </div>
         </div>
 
+        <!-- Tool Special Discount (% OFF) -->
+        <div class="form-group" style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; flex-wrap: wrap; gap: 0.5rem;">
+            <label class="form-label" for="tool-discount-percent" style="color: #fca5a5; font-weight: 800; margin: 0; display: flex; align-items: center; gap: 0.4rem;">
+              <span>🔥</span> Tool Special Discount (% OFF):
+            </label>
+            <span style="font-size: 0.72rem; color: #f87171;">Leave 0 for regular price</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <input 
+              type="number" 
+              id="tool-discount-percent" 
+              class="form-input" 
+              min="0" 
+              max="100" 
+              value="${tool.discountPercent || 0}" 
+              placeholder="e.g. 20" 
+              style="width: 110px; font-weight: 700; color: #f87171; text-align: center;" 
+            />
+            <span style="font-size: 0.88rem; font-weight: 800; color: #f87171;">% OFF</span>
+            <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+              <button type="button" class="quick-amount-chip" onclick="document.getElementById('tool-discount-percent').value='10'">10%</button>
+              <button type="button" class="quick-amount-chip" onclick="document.getElementById('tool-discount-percent').value='20'">20%</button>
+              <button type="button" class="quick-amount-chip" onclick="document.getElementById('tool-discount-percent').value='30'">30%</button>
+              <button type="button" class="quick-amount-chip" onclick="document.getElementById('tool-discount-percent').value='50'">50%</button>
+              <button type="button" class="quick-amount-chip" onclick="document.getElementById('tool-discount-percent').value='0'" style="color: #94a3b8;">Clear (0%)</button>
+            </div>
+          </div>
+          <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0.4rem 0 0 0;">
+            When set &gt; 0%, the storefront card and details page will highlight the discount badge and strikethrough original price with updated latest price.
+          </p>
+        </div>
+
         <!-- Tool Image / Media Banner with Live High-Fidelity Preview -->
         <div class="form-group">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
@@ -3049,6 +3201,7 @@ function openToolEditorModal(existingTool, root, allCategories = []) {
       sortOrder: parseInt(document.getElementById('tool-sort-order').value, 10) || 0,
       featured: document.getElementById('tool-featured').checked,
       active: document.getElementById('tool-active').checked,
+      discountPercent: parseInt(document.getElementById('tool-discount-percent')?.value, 10) || 0,
       features: parsedFeatures.length > 0 ? parsedFeatures : (tool.features || []),
       howToUse: tool.howToUse || []
     };
@@ -3454,6 +3607,29 @@ function openHotDealEditorModal(deal = null, root, toolsList = []) {
           <textarea id="deal-description" class="form-textarea" style="min-height: 80px;" placeholder="Describe what tools are included in this bundle, how the customer gets access, and why this is a high-value offer..." required>${targetDeal.shortDescription || targetDeal.description || ''}</textarea>
         </div>
 
+        <!-- Extra Deal Discount (% OFF) -->
+        <div class="form-group" style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; flex-wrap: wrap; gap: 0.5rem;">
+            <label class="form-label" for="deal-discount-percent" style="color: #fca5a5; font-weight: 800; margin: 0; display: flex; align-items: center; gap: 0.4rem;">
+              <span>🔥</span> Extra Deal Discount (% OFF):
+            </label>
+            <span style="font-size: 0.72rem; color: #f87171;">Leave 0 for default deal price</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <input 
+              type="number" 
+              id="deal-discount-percent" 
+              class="form-input" 
+              min="0" 
+              max="100" 
+              value="${targetDeal.discountPercent || 0}" 
+              placeholder="e.g. 15" 
+              style="width: 110px; font-weight: 700; color: #f87171; text-align: center;" 
+            />
+            <span style="font-size: 0.88rem; font-weight: 800; color: #f87171;">% OFF</span>
+          </div>
+        </div>
+
         <!-- Active Checkbox & Sort Order -->
         <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1rem; background: rgba(0,0,0,0.25); border-radius: 10px; margin-bottom: 1.5rem;">
           <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; font-size: 0.92rem; font-weight: 700; color: #f8fafc;">
@@ -3607,6 +3783,7 @@ function openHotDealEditorModal(deal = null, root, toolsList = []) {
       shortDescription: document.getElementById('deal-description').value.trim(),
       fullDescription: document.getElementById('deal-description').value.trim(),
       active: document.getElementById('deal-active').checked,
+      discountPercent: parseInt(document.getElementById('deal-discount-percent')?.value, 10) || 0,
       sortOrder: parseInt(document.getElementById('deal-sort-order').value, 10) || 0
     };
 

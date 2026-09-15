@@ -7,6 +7,7 @@ export default {
     home: 'ہوم',
     allTools: 'تمام ٹولز',
     hotDeals: 'ہاٹ ڈیلز 🔥',
+    upcoming: 'آنے والے ٹولز 🚀',
     categories: 'اقسام',
     about: 'ہمارے بارے میں',
     contact: 'رابطہ کریں',

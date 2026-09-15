@@ -1,4 +1,5 @@
 // AI Tools Store - UI & Data Helper Utilities
+import { getAppSettings } from '../lib/settings.js';
 
 // Parse any YouTube link into a clean embed URL
 export function formatVideoEmbedUrl(url) {
@@ -232,18 +233,132 @@ export function renderFormattedPoints(rawText, options = {}) {
   return `<span class="tool-desc-plain">${safeText}</span>`;
 }
 
+// Calculate dynamic discounted price for a tool, deal, or raw price string
+export function calculateToolDiscountPrice(toolOrPrice, targetCountry = '', overrideDiscount = null) {
+  let rawPrice = '';
+  let discountPercent = 0;
+
+  if (toolOrPrice && typeof toolOrPrice === 'object') {
+    rawPrice = getToolLocalizedPrice(toolOrPrice, targetCountry);
+    if (overrideDiscount !== null && overrideDiscount !== undefined) {
+      discountPercent = Math.max(0, Math.min(100, parseInt(overrideDiscount, 10) || 0));
+    } else if (typeof toolOrPrice.discountPercent === 'number' && toolOrPrice.discountPercent > 0) {
+      discountPercent = toolOrPrice.discountPercent;
+    } else if (typeof toolOrPrice.discount_percent === 'number' && toolOrPrice.discount_percent > 0) {
+      discountPercent = toolOrPrice.discount_percent;
+    }
+  } else {
+    rawPrice = String(toolOrPrice || '$19 /month');
+    if (overrideDiscount !== null && overrideDiscount !== undefined) {
+      discountPercent = Math.max(0, Math.min(100, parseInt(overrideDiscount, 10) || 0));
+    }
+  }
+
+  // Check global storewide discount if not specifically overridden on the item
+  if (discountPercent <= 0) {
+    try {
+      const appSettings = getAppSettings();
+      if (appSettings && appSettings.globalDiscountActive && appSettings.globalDiscountPercent > 0) {
+        discountPercent = appSettings.globalDiscountPercent;
+      }
+    } catch (e) {}
+  }
+
+  const { amount, unit, periodText, periodHtml } = parsePriceAndDuration(rawPrice);
+
+  if (discountPercent <= 0) {
+    return {
+      hasDiscount: false,
+      discountPercent: 0,
+      originalPrice: rawPrice,
+      originalAmount: amount,
+      discountedPrice: rawPrice,
+      discountedAmount: amount,
+      amount,
+      unit,
+      periodText,
+      periodHtml
+    };
+  }
+
+  // Parse amount number (e.g. "PKR 2,000", "$19", "USD 14.99")
+  const match = amount.match(/^([^\d]*)([\d,]+(?:\.\d+)?)(.*)$/);
+  if (!match) {
+    return {
+      hasDiscount: false,
+      discountPercent: 0,
+      originalPrice: rawPrice,
+      originalAmount: amount,
+      discountedPrice: rawPrice,
+      discountedAmount: amount,
+      amount,
+      unit,
+      periodText,
+      periodHtml
+    };
+  }
+
+  const prefix = match[1] || '';
+  const numVal = parseFloat(match[2].replace(/,/g, ''));
+  const suffix = match[3] || '';
+
+  if (isNaN(numVal) || numVal <= 0) {
+    return {
+      hasDiscount: false,
+      discountPercent: 0,
+      originalPrice: rawPrice,
+      originalAmount: amount,
+      discountedPrice: rawPrice,
+      discountedAmount: amount,
+      amount,
+      unit,
+      periodText,
+      periodHtml
+    };
+  }
+
+  const discountedNum = numVal * (1 - discountPercent / 100);
+  let discountedFormatted = '';
+  if (match[2].includes('.')) {
+    discountedFormatted = discountedNum.toFixed(2);
+  } else {
+    discountedFormatted = Math.round(discountedNum).toLocaleString('en-US');
+  }
+
+  const discountedAmount = `${prefix}${discountedFormatted}${suffix}`.trim();
+  const discountedPrice = `${discountedAmount}${periodText ? ` ${periodText}` : ''}`.trim();
+
+  return {
+    hasDiscount: true,
+    discountPercent,
+    originalPrice: rawPrice,
+    originalAmount: amount,
+    discountedPrice,
+    discountedAmount,
+    amount: discountedAmount,
+    unit,
+    periodText,
+    periodHtml
+  };
+}
+
 // Generate high-converting WhatsApp direct link
-export function buildWhatsAppLink(whatsappUrl, toolName = '', toolPrice = '', userCountry = '') {
+export function buildWhatsAppLink(whatsappUrl, toolName = '', toolPrice = '', userCountry = '', originalPrice = '', discountPercent = 0) {
   if (whatsappUrl && whatsappUrl.startsWith('http') && !toolPrice) {
     return whatsappUrl;
   }
   const defaultBase = import.meta.env.VITE_DEFAULT_WHATSAPP_URL || 'https://chat.whatsapp.com/invite/aitools-store-vip';
   if (!toolName) return defaultBase;
 
+  const countryText = userCountry ? ` for ${userCountry}` : '';
   let msgText = `Hello! I would like to purchase and activate ${toolName} from AI Tools Store.`;
+
   if (toolPrice) {
-    const countryText = userCountry ? ` for ${userCountry}` : '';
-    msgText = `Hello! I would like to purchase ${toolName} at ${toolPrice}${countryText} from AI Tools Store. Please share activation details.`;
+    if (discountPercent > 0 && originalPrice && originalPrice !== toolPrice) {
+      msgText = `Hello! I would like to purchase ${toolName} at special offer ${toolPrice} (${discountPercent}% OFF, regular ${originalPrice})${countryText} from AI Tools Store. Please share activation details.`;
+    } else {
+      msgText = `Hello! I would like to purchase ${toolName} at ${toolPrice}${countryText} from AI Tools Store. Please share activation details.`;
+    }
   }
 
   // If custom WhatsApp URL is already a wa.me or API link, retain the base phone number

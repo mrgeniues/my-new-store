@@ -22,7 +22,9 @@ export function getAppSettings() {
       mcpUrlType: parsed.mcpUrlType || (activeUrl.includes('-test') ? 'test' : 'production'),
       mcpSecretKey: parsed.mcpSecretKey || '',
       adminWhatsappNumber: parsed.adminWhatsappNumber || '',
-      adminWhatsappUrl: parsed.adminWhatsappUrl || defaultWhatsappUrl || ''
+      adminWhatsappUrl: parsed.adminWhatsappUrl || defaultWhatsappUrl || '',
+      globalDiscountPercent: parsed.globalDiscountPercent !== undefined ? parseInt(parsed.globalDiscountPercent, 10) : 0,
+      globalDiscountActive: parsed.globalDiscountActive === true
     };
 
     // Synchronize global mcpClient
@@ -36,7 +38,9 @@ export function getAppSettings() {
       mcpUrlType: 'production',
       mcpSecretKey: '',
       adminWhatsappNumber: '',
-      adminWhatsappUrl: defaultWhatsappUrl || ''
+      adminWhatsappUrl: defaultWhatsappUrl || '',
+      globalDiscountPercent: 0,
+      globalDiscountActive: false
     };
   }
 }
@@ -49,6 +53,9 @@ export function saveAppSettings(newSettings) {
     // Synchronize global mcpClient
     mcpClient.setServerUrl(merged.mcpWebhookUrl);
     mcpClient.setSecretKey(merged.mcpSecretKey);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ai_tools_settings_changed', { detail: merged }));
+    }
   } catch (e) {
     console.warn('[Settings] Failed to save settings to localStorage:', e);
   }

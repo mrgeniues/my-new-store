@@ -4,7 +4,7 @@ import { renderNavbar, attachNavbarEvents } from '../components/Navbar.js';
 import { renderFooter } from '../components/Footer.js';
 import { t } from '../i18n/i18n.js';
 import { authService } from '../lib/auth.js';
-import { buildWhatsAppLink, getToolLocalizedPrice, showToast, parsePriceAndDuration } from '../utils/helpers.js';
+import { buildWhatsAppLink, getToolLocalizedPrice, showToast, parsePriceAndDuration, calculateToolDiscountPrice } from '../utils/helpers.js';
 
 export async function renderHotDealsPage(root, { queryParams }) {
   document.title = `🔥 Hot Deals & BOGO Offers | ${t('nav.brand')}`;
@@ -36,9 +36,10 @@ export async function renderHotDealsPage(root, { queryParams }) {
     return `
       <div class="hot-deals-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 1.85rem; margin-top: 1.75rem;">
         ${dealsList.map((deal) => {
-          const localizedDealPrice = getToolLocalizedPrice(deal, currentCountry);
+          const discountInfo = calculateToolDiscountPrice(deal, currentCountry);
+          const localizedDealPrice = discountInfo.discountedPrice;
           const { amount: dealAmount, periodHtml } = parsePriceAndDuration(localizedDealPrice, '/mo');
-          const regularPrice = deal.regularPrice || 'PKR 4,999 /mo';
+          const regularPrice = deal.regularPrice || (discountInfo.hasDiscount ? discountInfo.originalPrice : 'PKR 4,999 /mo');
           const buyQty = deal.buyQuantity || 1;
           const freeQty = deal.freeQuantity || 1;
           const offerLabel = deal.offerLabel || 'BUY 1 GET 1 FREE';
@@ -48,12 +49,14 @@ export async function renderHotDealsPage(root, { queryParams }) {
             ? deal.whatsappUrl 
             : 'https://wa.me/923001234567';
 
+          const discountNote = discountInfo.hasDiscount ? ` (${discountInfo.discountPercent}% OFF, regular ${discountInfo.originalPrice})` : '';
+
           const orderMessage = encodeURIComponent(
             `🔥 *HOT DEAL ORDER INQUIRY*\n` +
             `• Deal: ${deal.name}\n` +
             `• Offer: ${offerLabel} (Buy: ${buyQty} | Get Free: ${freeQty})\n` +
             `• Validity / Duration: ${deal.duration || '1 Month'}\n` +
-            `• Price: ${localizedDealPrice}\n` +
+            `• Price: ${localizedDealPrice}${discountNote}\n` +
             `• Region: ${currentCountry}\n\n` +
             `Please share payment details and activate my deal access.`
           );
@@ -146,7 +149,9 @@ export async function renderHotDealsPage(root, { queryParams }) {
                 <!-- Price Row -->
                 <div style="display: flex; align-items: baseline; justify-content: space-between; margin-top: auto; padding-top: 0.85rem; border-top: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 1.1rem;">
                   <div>
-                    <span style="font-size: 0.72rem; color: var(--text-muted); display: block; text-transform: uppercase; font-weight: 600;">Promo Price:</span>
+                    <span style="font-size: 0.72rem; color: var(--text-muted); display: block; text-transform: uppercase; font-weight: 600;">
+                      ${discountInfo.hasDiscount ? `<span style="color: #f87171; font-weight: 800;">🔥 ${discountInfo.discountPercent}% OFF:</span>` : 'Promo Price:'}
+                    </span>
                     <div style="display: flex; align-items: baseline; gap: 0.4rem;">
                       <span style="font-size: 1.35rem; font-weight: 900; color: #34d399; letter-spacing: -0.02em;">
                         ${dealAmount}
@@ -156,9 +161,11 @@ export async function renderHotDealsPage(root, { queryParams }) {
                   </div>
 
                   <div style="text-align: right;">
-                    <span style="font-size: 0.68rem; color: var(--text-muted); display: block; text-transform: uppercase;">Regular Value:</span>
+                    <span style="font-size: 0.68rem; color: var(--text-muted); display: block; text-transform: uppercase;">
+                      ${discountInfo.hasDiscount ? 'Before Discount:' : 'Regular Value:'}
+                    </span>
                     <span style="font-size: 0.88rem; color: #94a3b8; text-decoration: line-through; font-weight: 600;">
-                      ${regularPrice}
+                      ${discountInfo.hasDiscount ? discountInfo.originalAmount : regularPrice}
                     </span>
                   </div>
                 </div>
