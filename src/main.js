@@ -26,12 +26,16 @@ const routes = {
 };
 
 import { onLanguageChange } from './i18n/i18n.js';
+import { syncAppSettingsFromSupabase } from './lib/settings.js';
 
 // Bootstrap App
 let appRouter = null;
 
 async function initApp() {
   console.log('[AI Tools Store] Initializing marketplace client...');
+  
+  // Background sync settings from Supabase if configured
+  syncAppSettingsFromSupabase().catch(() => {});
   
   // Pre-check API connectivity in background
   toolsApi.getTools().catch((err) => {

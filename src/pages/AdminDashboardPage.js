@@ -5,7 +5,7 @@ import { toolsApi } from '../api/toolsApi.js';
 import { renderNavbar, attachNavbarEvents } from '../components/Navbar.js';
 import { renderFooter } from '../components/Footer.js';
 import { showToast, getCountryFlag, getToolLocalizedPrice, calculateToolDiscountPrice } from '../utils/helpers.js';
-import { getAppSettings, saveAppSettings, testMcpWebhook, DEFAULT_MCP_TEST_URL } from '../lib/settings.js';
+import { getAppSettings, saveAppSettings, testMcpWebhook, testNewUserWebhook, DEFAULT_MCP_TEST_URL } from '../lib/settings.js';
 import { mcpClient } from '../lib/mcpClient.js';
 import { 
   renderUpcomingToolsTableHtml, 
@@ -1062,8 +1062,8 @@ export async function renderAdminDashboardPage(root) {
           </div>
         </div>
 
-        <!-- Card 3: Cloud Database Status -->
-        <div class="admin-table-card" style="max-width: 860px; margin-bottom: 2rem;">
+        <!-- Card 3: Cloud Database Status & Webhooks -->
+        <div class="admin-table-card" style="max-width: 920px; margin-bottom: 2rem;">
           <h3 style="font-size: 1.15rem; color: var(--text-pure); font-weight: 700; margin-bottom: 0.5rem;">
             Database Connection Diagnostics
           </h3>
@@ -1076,11 +1076,98 @@ export async function renderAdminDashboardPage(root) {
               readonly 
             />
           </div>
-          <div style="display: flex; gap: 1rem; align-items: center; padding-top: 0.5rem;">
+          <div style="display: flex; gap: 1rem; align-items: center; padding-top: 0.5rem; margin-bottom: 1.5rem;">
             <button id="btn-test-db-ping" type="button" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.65rem 1.25rem;">
               Test Database Ping
             </button>
             <span id="db-ping-status" style="font-size: 0.85rem; color: var(--text-muted);"></span>
+          </div>
+
+          <!-- n8n New User Registration Webhook Section -->
+          <div style="padding-top: 1.5rem; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+              <div style="display: flex; align-items: center; gap: 0.6rem;">
+                <span style="font-size: 1.35rem;">⚡</span>
+                <div>
+                  <h4 style="font-size: 1.05rem; font-weight: 800; color: #fb923c; margin: 0;">
+                    n8n New User Registration Webhook
+                  </h4>
+                  <p style="font-size: 0.78rem; color: #94a3b8; margin: 0.15rem 0 0 0;">
+                    Trigger an n8n webhook workflow whenever a <strong>new user creates an account</strong> (Sign Up).
+                  </p>
+                </div>
+              </div>
+              <div style="display: flex; gap: 0.5rem;">
+                <button id="btn-paste-new-user-webhook" type="button" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.85rem;">
+                  📋 Paste Link
+                </button>
+                <button id="btn-clear-new-user-webhook" type="button" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.75rem; color: #f87171;">
+                  ✕ Clear
+                </button>
+              </div>
+            </div>
+
+            <div style="margin-bottom: 0.85rem;">
+              <label class="form-label" style="font-size: 0.85rem; color: #cbd5e1; margin-bottom: 0.35rem; display: block;">
+                Webhook URL:
+              </label>
+              <input 
+                type="url" 
+                id="settings-new-user-webhook-url" 
+                class="form-input" 
+                value="${appSettings.newUserWebhookUrl || ''}" 
+                placeholder="https://n8n-1rsy.srv1898856.hstgr.cloud/webhook/..."
+                style="width: 100% !important; min-height: 52px !important; font-size: 0.95rem !important; font-family: 'JetBrains Mono', monospace !important; padding: 0.85rem 1.25rem !important; background: #070d18 !important; border: 1.5px solid rgba(234, 88, 12, 0.45) !important; border-radius: 10px !important; color: #fb923c !important; box-sizing: border-box !important; display: block !important;"
+              />
+            </div>
+
+            <!-- Enable/Disable Checkbox -->
+            <div style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 1.25rem;">
+              <input 
+                type="checkbox" 
+                id="settings-new-user-webhook-enabled" 
+                ${appSettings.newUserWebhookEnabled !== false ? 'checked' : ''} 
+                style="width: 18px; height: 18px; accent-color: #ea580c; cursor: pointer;"
+              />
+              <label for="settings-new-user-webhook-enabled" style="font-size: 0.88rem; font-weight: 600; color: #e2e8f0; cursor: pointer;">
+                Active: Trigger webhook automatically on new user registration
+              </label>
+            </div>
+
+            <!-- Action buttons: Test Webhook & Save Webhook -->
+            <div style="display: flex; gap: 0.85rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem;">
+              <button 
+                id="btn-test-new-user-webhook" 
+                type="button" 
+                style="background: linear-gradient(135deg, #ea580c, #c2410c); color: #ffffff; font-size: 0.88rem; font-weight: 700; padding: 0.65rem 1.4rem; border-radius: 10px; border: none; cursor: pointer; box-shadow: 0 4px 15px rgba(234, 88, 12, 0.35); display: flex; align-items: center; gap: 0.45rem;"
+              >
+                ⚡ Test Webhook Connection
+              </button>
+              <button 
+                id="btn-save-new-user-webhook" 
+                type="button" 
+                class="btn btn-secondary" 
+                style="font-size: 0.88rem; padding: 0.65rem 1.25rem; font-weight: 700; border-color: rgba(234, 88, 12, 0.4);"
+              >
+                💾 Save Webhook URL
+              </button>
+              <span id="new-user-webhook-status" style="font-size: 0.85rem; font-weight: 600;"></span>
+            </div>
+
+            <!-- Payload Schema Guide -->
+            <div style="padding: 0.85rem 1.1rem; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(234, 88, 12, 0.25); border-radius: 10px; font-size: 0.8rem; color: #cbd5e1;">
+              <span style="color: #fb923c; font-weight: 700;">📦 Data Format Dispatched to n8n:</span>
+              <pre style="margin: 0.4rem 0 0 0; font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; color: #fdba74; overflow-x: auto;">{
+  "event": "user.signup",
+  "user_id": "...",
+  "full_name": "...",
+  "email": "...",
+  "whatsapp_number": "...",
+  "country": "...",
+  "role": "member",
+  "created_at": "..."
+}</pre>
+            </div>
           </div>
         </div>
       </div>
@@ -1526,19 +1613,108 @@ export async function renderAdminDashboardPage(root) {
   document.getElementById('btn-test-mcp-connection')?.addEventListener('click', handleMcpConnectionTest);
   document.getElementById('btn-test-mcp-ping')?.addEventListener('click', handleMcpConnectionTest);
 
+  // New User Webhook Event Listeners
+  document.getElementById('btn-paste-new-user-webhook')?.addEventListener('click', async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const input = document.getElementById('settings-new-user-webhook-url');
+      if (input && text) {
+        input.value = text.trim();
+        input.focus();
+        showToast('Webhook link pasted from clipboard!', 'success');
+      }
+    } catch (err) {
+      showToast('Clipboard access denied. Please paste manually (Ctrl+V).', 'warning');
+    }
+  });
+
+  document.getElementById('btn-clear-new-user-webhook')?.addEventListener('click', () => {
+    const input = document.getElementById('settings-new-user-webhook-url');
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+    showToast('Webhook URL cleared', 'info');
+  });
+
+  document.getElementById('btn-test-new-user-webhook')?.addEventListener('click', async () => {
+    const input = document.getElementById('settings-new-user-webhook-url');
+    const statusEl = document.getElementById('new-user-webhook-status');
+    const url = input?.value?.trim() || '';
+
+    if (!url) {
+      showToast('Please enter an n8n Webhook URL first.', 'warning');
+      if (input) input.focus();
+      return;
+    }
+
+    if (statusEl) {
+      statusEl.textContent = '⏳ Dispatching test sign-up data to n8n...';
+      statusEl.style.color = '#fb923c';
+    }
+
+    const testBtn = document.getElementById('btn-test-new-user-webhook');
+    if (testBtn) testBtn.disabled = true;
+
+    try {
+      const result = await testNewUserWebhook(url);
+      if (statusEl) {
+        if (result.success) {
+          statusEl.textContent = result.message || '✓ Connected! n8n accepted test sign-up payload.';
+          statusEl.style.color = '#34d399';
+          showToast('n8n Webhook connection verified successfully!', 'success');
+        } else {
+          statusEl.textContent = result.message || 'Connection test failed.';
+          statusEl.style.color = '#f87171';
+          showToast(result.message || 'Webhook test failed', 'error');
+        }
+      }
+    } catch (err) {
+      if (statusEl) {
+        statusEl.textContent = `Error: ${err.message}`;
+        statusEl.style.color = '#f87171';
+      }
+      showToast(`Webhook test error: ${err.message}`, 'error');
+    } finally {
+      if (testBtn) testBtn.disabled = false;
+    }
+  });
+
+  document.getElementById('btn-save-new-user-webhook')?.addEventListener('click', () => {
+    const url = document.getElementById('settings-new-user-webhook-url')?.value?.trim() || '';
+    const enabled = document.getElementById('settings-new-user-webhook-enabled')?.checked ?? true;
+    const statusEl = document.getElementById('new-user-webhook-status');
+
+    saveAppSettings({
+      newUserWebhookUrl: url,
+      newUserWebhookEnabled: enabled
+    });
+
+    if (statusEl) {
+      statusEl.textContent = '✓ Webhook URL saved successfully!';
+      statusEl.style.color = '#34d399';
+      setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3500);
+    }
+    showToast('n8n New User Webhook saved!', 'success');
+  });
+
   // Save All Settings Button
   document.getElementById('btn-save-all-settings')?.addEventListener('click', () => {
     const mcpUrl = document.getElementById('settings-mcp-webhook-url')?.value?.trim() || '';
     const mcpSecret = document.getElementById('settings-mcp-secret')?.value?.trim() || '';
     const adminPhone = document.getElementById('settings-admin-whatsapp-number')?.value?.trim() || '';
     const adminUrl = document.getElementById('settings-admin-whatsapp-url')?.value?.trim() || '';
+    const newUserUrl = document.getElementById('settings-new-user-webhook-url')?.value?.trim() || '';
+    const newUserEnabled = document.getElementById('settings-new-user-webhook-enabled')?.checked ?? true;
     const statusEl = document.getElementById('settings-save-status');
 
     saveAppSettings({
       mcpWebhookUrl: mcpUrl,
       mcpSecretKey: mcpSecret,
       adminWhatsappNumber: adminPhone,
-      adminWhatsappUrl: adminUrl
+      adminWhatsappUrl: adminUrl,
+      newUserWebhookUrl: newUserUrl,
+      newUserWebhookEnabled: newUserEnabled
     });
 
     if (statusEl) {
@@ -1546,7 +1722,7 @@ export async function renderAdminDashboardPage(root) {
       setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3500);
     }
 
-    showToast('n8n MCP & WhatsApp settings saved!', 'success');
+    showToast('All settings (n8n Webhook, MCP & WhatsApp) saved!', 'success');
   });
 }
 

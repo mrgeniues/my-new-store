@@ -41,7 +41,8 @@ app.get('/api/config', (req, res) => {
     VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxZW1vaXRqYW5teHNtY212ZXNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1Mjc1NjAsImV4cCI6MjEwNDEwMzU2MH0.GntFd-uwBQTg7RiN_ePtX2q3l1fnCF8n_KmvKes9oYk',
     VITE_DEFAULT_WHATSAPP_URL: process.env.VITE_DEFAULT_WHATSAPP_URL || 'https://whatsapp.com/channel/0029Vb5pEK34tRrkKVuBCy0Q',
     VITE_ADMIN_EMAILS: process.env.VITE_ADMIN_EMAILS || 'admin@aitools.store,numanali1n@gmail.com',
-    DEFAULT_MCP_URL: process.env.MCP_SERVER_URL || 'https://n8n-1rsy.srv1898856.hstgr.cloud/mcp-test/69318bf8-f20c-4dab-91cf-604c84ce94b1'
+    DEFAULT_MCP_URL: process.env.MCP_SERVER_URL || 'https://n8n-1rsy.srv1898856.hstgr.cloud/mcp-test/69318bf8-f20c-4dab-91cf-604c84ce94b1',
+    VITE_N8N_NEW_USER_WEBHOOK_URL: process.env.VITE_N8N_NEW_USER_WEBHOOK_URL || ''
   });
 });
 
@@ -74,6 +75,66 @@ app.post('/api/mcp/call-tool', async (req, res) => {
   }
 });
 
+// n8n New User Registration Webhook Proxy Endpoint
+app.post('/api/webhook/new-user', async (req, res) => {
+  try {
+    const { targetUrl, userData } = req.body || {};
+    if (!targetUrl || !targetUrl.startsWith('http')) {
+      return res.status(400).json({ success: false, error: 'Valid targetUrl starting with http is required' });
+    }
+
+    const payload = userData || {};
+    let response;
+    try {
+      response = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json, text/plain, */*',
+          'Content-Type': 'application/json',
+          'User-Agent': 'AI-Tools-Store-NewUser-Webhook-Proxy/1.0'
+        },
+        body: JSON.stringify(payload)
+      });
+    } catch (fetchErr) {
+      if (targetUrl.includes('/webhook-test/')) {
+        const prodUrl = targetUrl.replace('/webhook-test/', '/webhook/');
+        response = await fetch(prodUrl, {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json, text/plain, */*',
+            'Content-Type': 'application/json',
+            'User-Agent': 'AI-Tools-Store-NewUser-Webhook-Proxy/1.0'
+          },
+          body: JSON.stringify(payload)
+        });
+      } else {
+        throw fetchErr;
+      }
+    }
+
+    // Auto retry with production URL if test URL returned 404
+    if (response.status === 404 && targetUrl.includes('/webhook-test/')) {
+      const prodUrl = targetUrl.replace('/webhook-test/', '/webhook/');
+      response = await fetch(prodUrl, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json, text/plain, */*',
+          'Content-Type': 'application/json',
+          'User-Agent': 'AI-Tools-Store-NewUser-Webhook-Proxy/1.0'
+        },
+        body: JSON.stringify(payload)
+      });
+    }
+
+    const text = await response.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    res.status(response.status).json({ success: response.ok, status: response.status, data });
+  } catch (err) {
+    res.status(500).json({ success: false, status: 500, error: err.message });
+  }
+});
+
 // Check if production build (dist/) exists
 if (fs.existsSync(distPath)) {
   // Serve static assets with cache control (index: false so SPA route can inject runtime env)
@@ -97,7 +158,8 @@ if (fs.existsSync(distPath)) {
         VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL || 'https://rqemoitjanmxsmcmveso.supabase.co',
         VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxZW1vaXRqYW5teHNtY212ZXNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1Mjc1NjAsImV4cCI6MjEwNDEwMzU2MH0.GntFd-uwBQTg7RiN_ePtX2q3l1fnCF8n_KmvKes9oYk',
         VITE_DEFAULT_WHATSAPP_URL: process.env.VITE_DEFAULT_WHATSAPP_URL || 'https://whatsapp.com/channel/0029Vb5pEK34tRrkKVuBCy0Q',
-        VITE_ADMIN_EMAILS: process.env.VITE_ADMIN_EMAILS || 'admin@aitools.store,numanali1n@gmail.com'
+        VITE_ADMIN_EMAILS: process.env.VITE_ADMIN_EMAILS || 'admin@aitools.store,numanali1n@gmail.com',
+        VITE_N8N_NEW_USER_WEBHOOK_URL: process.env.VITE_N8N_NEW_USER_WEBHOOK_URL || ''
       };
 
       const envScript = `<script id="hostinger-runtime-env">window.__ENV__ = ${JSON.stringify(runtimeEnv)};</script>`;

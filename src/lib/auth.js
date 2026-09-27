@@ -1,5 +1,6 @@
 // AI Tools Store - Supabase Authentication & Profile Service (Direct Database Integration)
 import { supabase, isSupabaseConfigured, getEnv } from './supabase.js';
+import { triggerNewUserWebhook } from './settings.js';
 
 const STORAGE_SESSION_KEY = 'ai_tools_user_session_v1';
 const ADMIN_AUTH_KEY = 'ai_tools_admin_authorized';
@@ -463,6 +464,21 @@ class AuthService {
 
     // Store country active selection locally
     this.setUserCountry(cleanCountry);
+
+    // 3. Trigger n8n Webhook for New User Registration (ONLY triggered on new account creation)
+    try {
+      triggerNewUserWebhook({
+        id: userObj.id,
+        fullName: cleanName,
+        email: cleanEmail,
+        whatsappNumber: cleanPhone,
+        country: cleanCountry,
+        role: isAdmin ? 'admin' : 'member',
+        createdAt: userObj.created_at || new Date().toISOString()
+      }).catch(err => console.warn('[Auth] Webhook background dispatch notice:', err));
+    } catch (whErr) {
+      console.warn('[AI Tools Store Auth] New user webhook notice:', whErr);
+    }
 
     // If session returned immediately (Confirm email is OFF in Supabase)
     if (data.session) {

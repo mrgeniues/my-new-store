@@ -26,6 +26,10 @@ export async function renderHomePage(root) {
     <main class="main-content fade-in">
       <!-- HERO SECTION (THE INTELLIGENT TOOL INDEX) -->
       <section class="hero-section">
+        <!-- Ambient Floating Aurora Light Blobs -->
+        <div class="hero-aurora-blob hero-aurora-1"></div>
+        <div class="hero-aurora-blob hero-aurora-2"></div>
+
         <div class="container hero-grid">
           <!-- Left Hero Copy -->
           <div class="hero-content">
@@ -71,6 +75,22 @@ export async function renderHomePage(root) {
                 </svg>
               </button>
             </form>
+
+            <!-- Trending Quick-Search Pills -->
+            <div class="hero-trending-row">
+              <span class="hero-trending-label">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b" stroke-width="1">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+                Trending:
+              </span>
+              <button type="button" class="hero-trending-chip" data-search="ChatGPT">ChatGPT</button>
+              <button type="button" class="hero-trending-chip" data-search="Midjourney">Midjourney</button>
+              <button type="button" class="hero-trending-chip" data-search="Claude">Claude 3.5</button>
+              <button type="button" class="hero-trending-chip" data-search="Cursor">Cursor AI</button>
+              <button type="button" class="hero-trending-chip" data-search="n8n">n8n</button>
+              <button type="button" class="hero-trending-chip" data-search="Lovable">Lovable</button>
+            </div>
 
             <!-- Indexed Count Metadata Row -->
             <div class="hero-indexed-meta">
@@ -323,5 +343,68 @@ export async function renderHomePage(root) {
       const q = heroInput.value.trim();
       window.location.hash = `#/tools?q=${encodeURIComponent(q)}`;
     };
+  }
+
+  // Trending search chips click
+  document.querySelectorAll('.hero-trending-chip').forEach((chip) => {
+    chip.addEventListener('click', (e) => {
+      e.preventDefault();
+      const term = chip.dataset.search || chip.textContent.trim();
+      if (heroInput) heroInput.value = term;
+      window.location.hash = `#/tools?q=${encodeURIComponent(term)}`;
+    });
+  });
+
+  // Orbit Tool Badges click -> direct navigation to tool
+  document.querySelectorAll('.orbit-tool-card').forEach((card) => {
+    card.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const toolName = card.dataset.toolName || '';
+      if (toolName) {
+        window.location.hash = `#/tools?q=${encodeURIComponent(toolName)}`;
+      }
+    });
+  });
+
+  // Silky Smooth Damped 3D Parallax on AI Orb Stage
+  const heroSection = document.querySelector('.hero-section');
+  const orbStage = document.querySelector('.hero-orb-stage');
+
+  if (heroSection && orbStage) {
+    let targetRotY = 0;
+    let targetRotX = 0;
+    let currentRotY = 0;
+    let currentRotX = 0;
+    let isTracking = true;
+
+    const onHeroMouseMove = (e) => {
+      const rect = heroSection.getBoundingClientRect();
+      const normX = (e.clientX - rect.left) / rect.width - 0.5; // -0.5 to 0.5
+      const normY = (e.clientY - rect.top) / rect.height - 0.5;
+      targetRotY = normX * 18; // Max 18 deg Y tilt
+      targetRotX = -normY * 18; // Max 18 deg X tilt
+    };
+
+    const onHeroMouseLeave = () => {
+      targetRotY = 0;
+      targetRotX = 0;
+    };
+
+    heroSection.addEventListener('mousemove', onHeroMouseMove, { passive: true });
+    heroSection.addEventListener('mouseleave', onHeroMouseLeave, { passive: true });
+
+    const animateParallax = () => {
+      if (!isTracking) return;
+      // Damped interpolation (LERP) for silky fluid motion
+      currentRotY += (targetRotY - currentRotY) * 0.08;
+      currentRotX += (targetRotX - currentRotX) * 0.08;
+
+      if (orbStage) {
+        orbStage.style.transform = `perspective(1200px) rotateY(${currentRotY.toFixed(2)}deg) rotateX(${currentRotX.toFixed(2)}deg)`;
+      }
+      requestAnimationFrame(animateParallax);
+    };
+
+    requestAnimationFrame(animateParallax);
   }
 }

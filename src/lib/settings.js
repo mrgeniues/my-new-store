@@ -1,5 +1,5 @@
 // AI Tools Store - Global App Settings Service (n8n Webhook, MCP & WhatsApp)
-import { defaultWhatsappUrl } from './supabase.js';
+import { defaultWhatsappUrl, supabase, getEnv } from './supabase.js';
 import { mcpClient } from './mcpClient.js';
 
 export const APP_SETTINGS_KEY = 'ai_tools_app_settings_v1';
@@ -17,10 +17,14 @@ export function getAppSettings() {
       activeUrl = DEFAULT_MCP_PRODUCTION_URL;
     }
 
+    const defaultNewUserWebhook = getEnv('VITE_N8N_NEW_USER_WEBHOOK_URL', '');
+
     const settings = {
       mcpWebhookUrl: activeUrl,
       mcpUrlType: parsed.mcpUrlType || (activeUrl.includes('-test') ? 'test' : 'production'),
       mcpSecretKey: parsed.mcpSecretKey || '',
+      newUserWebhookUrl: parsed.newUserWebhookUrl || defaultNewUserWebhook || '',
+      newUserWebhookEnabled: parsed.newUserWebhookEnabled !== false,
       adminWhatsappNumber: parsed.adminWhatsappNumber || '',
       adminWhatsappUrl: parsed.adminWhatsappUrl || defaultWhatsappUrl || '',
       globalDiscountPercent: parsed.globalDiscountPercent !== undefined ? parseInt(parsed.globalDiscountPercent, 10) : 0,
@@ -37,6 +41,8 @@ export function getAppSettings() {
       mcpWebhookUrl: DEFAULT_MCP_PRODUCTION_URL,
       mcpUrlType: 'production',
       mcpSecretKey: '',
+      newUserWebhookUrl: getEnv('VITE_N8N_NEW_USER_WEBHOOK_URL', ''),
+      newUserWebhookEnabled: true,
       adminWhatsappNumber: '',
       adminWhatsappUrl: defaultWhatsappUrl || '',
       globalDiscountPercent: 0,
@@ -56,10 +62,65 @@ export function saveAppSettings(newSettings) {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('ai_tools_settings_changed', { detail: merged }));
     }
+
+    // Optionally sync to Supabase app_settings table if it exists
+    if (supabase) {
+      supabase.from('app_settings').upsert({
+        id: 'global',
+        new_user_webhook_url: merged.newUserWebhookUrl || '',
+        new_user_webhook_enabled: merged.newUserWebhookEnabled !== false,
+        mcp_webhook_url: merged.mcpWebhookUrl || '',
+        mcp_secret_key: merged.mcpSecretKey || '',
+        admin_whatsapp_number: merged.adminWhatsappNumber || '',
+        admin_whatsapp_url: merged.adminWhatsappUrl || '',
+        global_discount_percent: merged.globalDiscountPercent || 0,
+        global_discount_active: merged.globalDiscountActive === true,
+        updated_at: new Date().toISOString()
+      }).then(({ error }) => {
+        if (error && !error.message?.includes('does not exist')) {
+          console.warn('[Settings] Supabase settings sync notice:', error.message);
+        }
+      }).catch(() => {});
+    }
   } catch (e) {
     console.warn('[Settings] Failed to save settings to localStorage:', e);
   }
   return merged;
+}
+
+// Background sync from Supabase app_settings table
+export async function syncAppSettingsFromSupabase() {
+  if (!supabase) return;
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('*')
+      .eq('id', 'global')
+      .maybeSingle();
+
+    if (!error && data) {
+      const current = getAppSettings();
+      const updated = {
+        ...current,
+        newUserWebhookUrl: data.new_user_webhook_url || current.newUserWebhookUrl,
+        newUserWebhookEnabled: data.new_user_webhook_enabled !== undefined ? data.new_user_webhook_enabled : current.newUserWebhookEnabled,
+        mcpWebhookUrl: data.mcp_webhook_url || current.mcpWebhookUrl,
+        mcpSecretKey: data.mcp_secret_key || current.mcpSecretKey,
+        adminWhatsappNumber: data.admin_whatsapp_number || current.adminWhatsappNumber,
+        adminWhatsappUrl: data.admin_whatsapp_url || current.adminWhatsappUrl,
+        globalDiscountPercent: data.global_discount_percent !== undefined ? data.global_discount_percent : current.globalDiscountPercent,
+        globalDiscountActive: data.global_discount_active !== undefined ? data.global_discount_active : current.globalDiscountActive
+      };
+      localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(updated));
+      mcpClient.setServerUrl(updated.mcpWebhookUrl);
+      mcpClient.setSecretKey(updated.mcpSecretKey);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('ai_tools_settings_changed', { detail: updated }));
+      }
+    }
+  } catch (e) {
+    // Silent ignore if table not created
+  }
 }
 
 // Delegate test to proper McpClient
@@ -67,3 +128,206 @@ export async function testMcpWebhook(url, secret = '') {
   return await mcpClient.testConnection(url, secret);
 }
 
+/**
+ * Tests the n8n New User Registration Webhook
+ * @param {string} rawUrl - Full n8n webhook URL
+ * @returns {Promise<Object>} Diagnostic result { success, status, message }
+ */
+export async function testNewUserWebhook(rawUrl) {
+  const url = (rawUrl || '').trim();
+  if (!url || !url.startsWith('http')) {
+    return {
+      success: false,
+      status: 400,
+      message: 'Please provide a valid n8n Webhook URL starting with https:// or http://'
+    };
+  }
+
+  const testPayload = {
+    event: 'user.signup',
+    test: true,
+    user_id: 'test-' + Math.random().toString(36).substring(2, 10),
+    full_name: 'Test Member (VIP)',
+    name: 'Test Member (VIP)',
+    email: 'test_user_' + Math.floor(Math.random() * 1000) + '@example.com',
+    whatsapp_number: '+92 300 1234567',
+    whatsapp: '+92 300 1234567',
+    country: 'Pakistan',
+    role: 'member',
+    created_at: new Date().toISOString()
+  };
+
+  // 1. Try server-side proxy first (avoids CORS)
+  try {
+    const proxyRes = await fetch('/api/webhook/new-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetUrl: url, userData: testPayload })
+    });
+
+    if (proxyRes.ok) {
+      const data = await proxyRes.json();
+      if (data.success) {
+        return {
+          success: true,
+          status: data.status || 200,
+          message: '✓ Webhook connected! n8n successfully received test registration data.'
+        };
+      } else if (data.status === 404) {
+        const isTest = url.includes('/webhook-test/');
+        return {
+          success: false,
+          status: 404,
+          message: isTest
+            ? 'HTTP 404: n8n is not listening for test events right now. Click "Listen for test event" / "Execute step" in n8n first, then test again.'
+            : 'HTTP 404: n8n webhook URL not found or workflow is inactive. Make sure the workflow is turned ON in n8n.'
+        };
+      }
+    }
+  } catch (proxyErr) {
+    console.warn('[Settings] Proxy unavailable, attempting direct fetch...', proxyErr);
+  }
+
+  // 2. Direct client-side fetch fallback
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 7000);
+
+    let response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json, text/plain, */*',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(testPayload),
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+
+    // If test URL gave 404, retry with production URL automatically
+    if (response.status === 404 && url.includes('/webhook-test/')) {
+      const prodUrl = url.replace('/webhook-test/', '/webhook/');
+      try {
+        const prodResp = await fetch(prodUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(testPayload)
+        });
+        if (prodResp.ok) response = prodResp;
+      } catch {}
+    }
+
+    if (response.ok || response.status === 200 || response.status === 201) {
+      return {
+        success: true,
+        status: response.status,
+        message: '✓ Webhook connected! n8n received the test registration payload.'
+      };
+    }
+
+    if (response.status === 404) {
+      const isTest = url.includes('/webhook-test/');
+      return {
+        success: false,
+        status: 404,
+        message: isTest
+          ? 'HTTP 404: n8n is not listening for test events. Click "Listen for test event" / "Execute step" in n8n first.'
+          : 'HTTP 404: n8n webhook was not found. Please activate the workflow in n8n.'
+      };
+    }
+
+    return {
+      success: false,
+      status: response.status,
+      message: `n8n responded with HTTP ${response.status} (${response.statusText || 'Error'})`
+    };
+  } catch (err) {
+    return {
+      success: false,
+      status: 0,
+      message: err.name === 'AbortError' ? 'Connection timed out (7s)' : `Network / CORS error: ${err.message}`
+    };
+  }
+}
+
+/**
+ * Triggers the n8n New User Registration Webhook
+ * Called ONLY when a new user account is created.
+ * @param {Object} userData - { id, fullName, email, whatsappNumber, country, role, createdAt }
+ */
+export async function triggerNewUserWebhook(userData) {
+  const settings = getAppSettings();
+  if (!settings.newUserWebhookEnabled) {
+    return { skipped: true, reason: 'Webhook disabled in settings' };
+  }
+
+  const webhookUrl = (settings.newUserWebhookUrl || '').trim();
+  if (!webhookUrl || !webhookUrl.startsWith('http')) {
+    return { skipped: true, reason: 'No webhook URL configured' };
+  }
+
+  const payload = {
+    event: 'user.signup',
+    user_id: userData.id || '',
+    full_name: userData.fullName || userData.name || '',
+    name: userData.fullName || userData.name || '',
+    email: userData.email || '',
+    whatsapp_number: userData.whatsappNumber || userData.whatsapp || '',
+    whatsapp: userData.whatsappNumber || userData.whatsapp || '',
+    country: userData.country || 'Pakistan',
+    role: userData.role || 'member',
+    created_at: userData.createdAt || new Date().toISOString()
+  };
+
+  // 1. Try server-side proxy
+  try {
+    const proxyRes = await fetch('/api/webhook/new-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetUrl: webhookUrl, userData: payload })
+    });
+
+    if (proxyRes.ok) {
+      const data = await proxyRes.json();
+      if (data.success) {
+        console.log('[NewUserWebhook] Successfully dispatched to n8n via proxy');
+        return data;
+      }
+    }
+  } catch (proxyErr) {
+    console.warn('[NewUserWebhook] Proxy unavailable, attempting direct POST...', proxyErr);
+  }
+
+  // 2. Direct browser fetch fallback
+  try {
+    let response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json, text/plain, */*',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    // Auto-retry with production URL if test URL returned 404
+    if (response.status === 404 && webhookUrl.includes('/webhook-test/')) {
+      const prodUrl = webhookUrl.replace('/webhook-test/', '/webhook/');
+      response = await fetch(prodUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    }
+
+    if (response.ok) {
+      console.log('[NewUserWebhook] Successfully dispatched directly to n8n');
+      return { success: true, status: response.status };
+    } else {
+      console.warn(`[NewUserWebhook] n8n returned HTTP ${response.status}`);
+      return { success: false, status: response.status };
+    }
+  } catch (err) {
+    console.warn('[NewUserWebhook] Direct fetch failed:', err.message);
+    return { success: false, error: err.message };
+  }
+}
