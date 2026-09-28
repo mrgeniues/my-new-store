@@ -1938,7 +1938,7 @@ function renderUsersTableHtml(usersList) {
           <th>Registered On</th>
           <th>Last Login</th>
           <th>Role</th>
-          <th>Role Action</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -1948,6 +1948,9 @@ function renderUsersTableHtml(usersList) {
           const cleanPhone = (u.whatsapp_number || '').replace(/\D/g, '');
           const joinedDate = u.created_at ? new Date(u.created_at).toLocaleDateString() : 'Active';
           const lastLogin = u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString() : '—';
+          const currentLoggedInUser = authService.currentUser;
+          const isCurrentUser = (currentLoggedInUser?.id && currentLoggedInUser.id === u.id) ||
+            (currentLoggedInUser?.email && currentLoggedInUser.email.toLowerCase() === (u.email || '').toLowerCase());
 
           return `
             <tr>
@@ -1983,14 +1986,36 @@ function renderUsersTableHtml(usersList) {
                 </span>
               </td>
               <td>
-                <button 
-                  class="btn-details toggle-user-role-btn" 
-                  data-user-id="${u.id}" 
-                  data-user-role="${u.role}"
-                  style="font-size: 0.75rem; padding: 0.35rem 0.65rem; color: ${isAdmin ? '#f87171' : 'var(--accent-cyan)'};"
-                >
-                  ${isAdmin ? 'Demote to Member' : 'Promote to Admin'}
-                </button>
+                <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+                  <button 
+                    class="btn-details toggle-user-role-btn" 
+                    data-user-id="${u.id}" 
+                    data-user-role="${u.role}"
+                    ${isCurrentUser ? 'disabled title="You cannot change your own role"' : ''}
+                    style="font-size: 0.75rem; padding: 0.35rem 0.65rem; color: ${isAdmin ? '#f59e0b' : 'var(--accent-cyan)'}; ${isCurrentUser ? 'opacity: 0.45; cursor: not-allowed;' : ''}"
+                  >
+                    ${isAdmin ? 'Demote to Member' : 'Promote to Admin'}
+                  </button>
+
+                  ${isCurrentUser ? `
+                    <span style="font-size: 0.72rem; color: var(--text-muted); font-style: italic; padding: 0.3rem 0.5rem; background: rgba(255,255,255,0.05); border-radius: 6px; border: 1px solid var(--border-glass);">(You)</span>
+                  ` : `
+                    <button 
+                      class="btn-details delete-user-btn" 
+                      data-user-id="${u.id}" 
+                      data-user-email="${u.email}"
+                      data-user-name="${(u.full_name || u.email || 'User').replace(/"/g, '&quot;')}"
+                      style="font-size: 0.75rem; padding: 0.35rem 0.65rem; color: #ef4444; border-color: rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.08); display: inline-flex; align-items: center; gap: 0.3rem;"
+                      title="Delete user permanently from Supabase"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      </svg>
+                      <span>Delete</span>
+                    </button>
+                  `}
+                </div>
               </td>
             </tr>
           `;
@@ -2001,6 +2026,7 @@ function renderUsersTableHtml(usersList) {
 }
 
 function bindUsersTableEvents(usersList, root) {
+  // Toggle User Role (Admin <-> Member)
   document.querySelectorAll('.toggle-user-role-btn').forEach((btn) => {
     btn.onclick = async () => {
       const userId = btn.dataset.userId;
@@ -2015,6 +2041,33 @@ function bindUsersTableEvents(usersList, root) {
         } catch (err) {
           showToast(`Failed to update role: ${err.message}`, 'error');
         }
+      }
+    };
+  });
+
+  // Delete User Permanently from Supabase
+  document.querySelectorAll('.delete-user-btn').forEach((btn) => {
+    btn.onclick = async () => {
+      const userId = btn.dataset.userId;
+      const userEmail = btn.dataset.userEmail;
+      const userName = btn.dataset.userName || userEmail;
+
+      if (!confirm(`Are you sure you want to permanently delete user "${userName}" (${userEmail})?\n\nThis will remove their profile and login access from Supabase database.`)) {
+        return;
+      }
+
+      btn.disabled = true;
+      const originalHtml = btn.innerHTML;
+      btn.innerHTML = '<span style="color: #ef4444;">Deleting...</span>';
+
+      try {
+        await authService.deleteUser(userId);
+        showToast(`User "${userName}" has been successfully deleted from Supabase.`, 'success');
+        renderAdminDashboardPage(root);
+      } catch (err) {
+        showToast(`Failed to delete user: ${err.message}`, 'error');
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
       }
     };
   });

@@ -87,6 +87,44 @@ WITH CHECK (
   (auth.uid() = id AND (role IS NULL OR role = (SELECT p.role FROM public.profiles p WHERE p.id = auth.uid())))
 );
 
+-- 4. Admins can delete profiles
+DROP POLICY IF EXISTS "Profiles delete policy" ON public.profiles;
+CREATE POLICY "Profiles delete policy"
+ON public.profiles FOR DELETE
+TO public
+USING (public.is_admin());
+
+-- Secure function allowing verified admins to delete users completely from auth.users
+CREATE OR REPLACE FUNCTION public.delete_user_by_admin(target_user_id UUID)
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_is_admin BOOLEAN;
+BEGIN
+  SELECT public.is_admin() INTO v_is_admin;
+  IF NOT COALESCE(v_is_admin, false) THEN
+    IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin') THEN
+      RAISE EXCEPTION 'Access denied: Only store administrators can delete users.';
+    END IF;
+  END IF;
+
+  IF target_user_id = auth.uid() THEN
+    RAISE EXCEPTION 'Safety check: You cannot delete your own active administrator account.';
+  END IF;
+
+  DELETE FROM auth.users WHERE id = target_user_id;
+  DELETE FROM public.profiles WHERE id = target_user_id;
+  RETURN TRUE;
+EXCEPTION
+  WHEN OTHERS THEN
+    DELETE FROM public.profiles WHERE id = target_user_id;
+    RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.delete_user_by_admin(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_user_by_admin(UUID) TO anon;
+
+
 -- ============================================================================
 -- STEP 4: ROW LEVEL SECURITY ON TOOLS TABLE (ADMIN ONLY CAN EDIT/ADD/DELETE)
 -- ============================================================================

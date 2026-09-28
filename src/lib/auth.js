@@ -388,6 +388,51 @@ class AuthService {
     return true;
   }
 
+  // Delete user permanently from Supabase (both auth.users via RPC and public.profiles table)
+  async deleteUser(userId) {
+    if (!isSupabaseConfigured) {
+      throw new Error('Supabase is not configured.');
+    }
+
+    if (!userId) {
+      throw new Error('User ID is required to delete user.');
+    }
+
+    if (this.currentUser && this.currentUser.id === userId) {
+      throw new Error('You cannot delete your own active administrator account.');
+    }
+
+    let rpcSuccess = false;
+    let rpcError = null;
+
+    // 1. Attempt to delete via database RPC function (removes from auth.users and cascades)
+    try {
+      const { data, error } = await supabase.rpc('delete_user_by_admin', {
+        target_user_id: userId
+      });
+      if (!error) {
+        rpcSuccess = true;
+      } else {
+        rpcError = error;
+      }
+    } catch (err) {
+      rpcError = err;
+    }
+
+    // 2. Fallback / Direct delete from public.profiles table
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', userId);
+
+    if (!rpcSuccess && profileError) {
+      console.error('[AI Tools Store Auth] Error deleting user:', rpcError || profileError);
+      throw new Error(rpcError?.message || profileError?.message || 'Failed to delete user from Supabase.');
+    }
+
+    return true;
+  }
+
   // Sign up directly into Supabase Auth and public.profiles with Country selection
   async signUp({ fullName, email, whatsappNumber, password, country = 'Pakistan' }) {
     const cleanEmail = (email || '').trim();
