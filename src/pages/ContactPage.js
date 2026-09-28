@@ -104,17 +104,17 @@ export async function renderContactPage(root) {
               </div>
             </div>
 
-            <!-- Topic with Quick Chips -->
+            <!-- Topic with Quick Chips & Dropdown -->
             <div class="form-group">
               <div class="quick-topic-label">
                 <label for="contact-subject" style="margin-bottom: 0;">Inquiry Topic *</label>
-                <span style="font-size: 0.72rem; color: var(--accent-cyan);">Tap a chip to auto-select</span>
+                <span style="font-size: 0.72rem; color: var(--accent-cyan);">Tap a chip or select from dropdown</span>
               </div>
               <div class="quick-topic-chips" id="topic-chips-group">
                 <button type="button" class="topic-chip active" data-topic="License Activation">🔑 License Activation</button>
-                <button type="button" class="topic-chip" data-topic="Payment Inquiry">💳 Payment Inquiry</button>
                 <button type="button" class="topic-chip" data-topic="Video Tutorial Help">🎥 Tutorial Help</button>
                 <button type="button" class="topic-chip" data-topic="Enterprise & Bulk Order">💼 Bulk Order</button>
+                <button type="button" class="topic-chip" data-topic="Other">✨ Other</button>
               </div>
               <div class="form-input-wrapper">
                 <span class="form-input-icon">
@@ -123,7 +123,31 @@ export async function renderContactPage(root) {
                     <line x1="7" y1="7" x2="7.01" y2="7"/>
                   </svg>
                 </span>
-                <input type="text" id="contact-subject" class="form-input-stylish" value="License Activation" placeholder="Select or type your inquiry topic..." required />
+                <select id="contact-subject" class="form-input-stylish" required>
+                  <option value="License Activation" selected>🔑 License Activation</option>
+                  <option value="Video Tutorial Help">🎥 Video Tutorial Help</option>
+                  <option value="Enterprise & Bulk Order">💼 Enterprise & Bulk Order</option>
+                  <option value="Other">✨ Other (Custom Inquiry)</option>
+                </select>
+              </div>
+
+              <!-- Custom Topic Field (Visible when 'Other' is selected) -->
+              <div id="other-topic-field" style="display: none; margin-top: 0.75rem;">
+                <div class="form-input-wrapper">
+                  <span class="form-input-icon">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                      <path d="M12 20h9"/>
+                      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                    </svg>
+                  </span>
+                  <input 
+                    type="text" 
+                    id="contact-custom-topic" 
+                    class="form-input-stylish" 
+                    placeholder="Please specify your inquiry topic..." 
+                    maxlength="100"
+                  />
+                </div>
               </div>
             </div>
 
@@ -272,18 +296,47 @@ export async function renderContactPage(root) {
 
   attachNavbarEvents();
 
-  // Topic quick chips interaction
+  // Topic quick chips & dropdown interaction
   const topicChips = document.querySelectorAll('.topic-chip');
-  const subjectInput = document.getElementById('contact-subject');
+  const subjectSelect = document.getElementById('contact-subject');
+  const otherTopicField = document.getElementById('other-topic-field');
+  const customTopicInput = document.getElementById('contact-custom-topic');
+
+  const updateTopicUI = (selectedTopic) => {
+    // 1. Sync dropdown
+    if (subjectSelect && subjectSelect.value !== selectedTopic) {
+      subjectSelect.value = selectedTopic;
+    }
+
+    // 2. Sync chip active states
+    topicChips.forEach((chip) => {
+      chip.classList.toggle('active', chip.dataset.topic === selectedTopic);
+    });
+
+    // 3. Show or hide custom topic input
+    if (otherTopicField) {
+      if (selectedTopic === 'Other') {
+        otherTopicField.style.display = 'block';
+        if (customTopicInput) {
+          customTopicInput.focus();
+        }
+      } else {
+        otherTopicField.style.display = 'none';
+      }
+    }
+  };
+
   topicChips.forEach((chip) => {
     chip.onclick = () => {
-      topicChips.forEach((c) => c.classList.remove('active'));
-      chip.classList.add('active');
-      if (subjectInput) {
-        subjectInput.value = chip.dataset.topic;
-      }
+      updateTopicUI(chip.dataset.topic);
     };
   });
+
+  if (subjectSelect) {
+    subjectSelect.onchange = () => {
+      updateTopicUI(subjectSelect.value);
+    };
+  }
 
   // Contact Form Submission (Saves to Supabase Table Editor 'contact_messages')
   const form = document.getElementById('contact-form');
@@ -296,7 +349,11 @@ export async function renderContactPage(root) {
       const name = document.getElementById('contact-name')?.value?.trim() || '';
       const email = document.getElementById('contact-email')?.value?.trim() || '';
       const whatsapp = document.getElementById('contact-whatsapp')?.value?.trim() || '';
-      const subject = document.getElementById('contact-subject')?.value?.trim() || 'General Inquiry';
+      let subject = subjectSelect?.value || 'License Activation';
+      if (subject === 'Other') {
+        const custom = customTopicInput?.value?.trim();
+        subject = custom ? `Other: ${custom}` : 'Other Inquiry';
+      }
       const message = document.getElementById('contact-message')?.value?.trim() || '';
 
       if (submitBtn) {
@@ -346,12 +403,14 @@ export async function renderContactPage(root) {
 
         showToast(`Thank you, ${name}! Your message has been received. Our team will contact you shortly.`, 'success');
         form.reset();
-        topicChips.forEach((c, idx) => c.classList.toggle('active', idx === 0));
-        if (subjectInput) subjectInput.value = 'License Activation';
+        updateTopicUI('License Activation');
+        if (customTopicInput) customTopicInput.value = '';
       } catch (err) {
         console.error('[ContactPage] Error submitting form:', err);
         showToast(`Thank you, ${name}! Your message has been received.`, 'success');
         form.reset();
+        updateTopicUI('License Activation');
+        if (customTopicInput) customTopicInput.value = '';
       } finally {
         if (submitBtn) {
           submitBtn.disabled = false;
