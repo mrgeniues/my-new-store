@@ -265,6 +265,7 @@ export function renderNavbar(activePath = '/') {
   const isCategories = activePath === '/categories';
   const isAbout = activePath === '/about';
   const isContact = activePath === '/contact';
+  const isPolicy = activePath === '/policy';
   const isAdmin = activePath === '/admin';
 
   const defaultWhatsApp = defaultWhatsappUrl;
@@ -301,6 +302,7 @@ export function renderNavbar(activePath = '/') {
           <a href="#/categories" class="nav-link ${isCategories ? 'active' : ''}">${t('nav.categories')}</a>
           <a href="#/about" class="nav-link ${isAbout ? 'active' : ''}">${t('nav.about')}</a>
           <a href="#/contact" class="nav-link ${isContact ? 'active' : ''}">${t('nav.contact')}</a>
+          <a href="#/policy" class="nav-link ${isPolicy ? 'active' : ''}">${t('nav.policy')}</a>
         </nav>
 
         <!-- Right Nav Actions -->
@@ -362,6 +364,7 @@ export function renderNavbar(activePath = '/') {
           <a href="#/categories" class="mobile-nav-link ${isCategories ? 'active' : ''}">${t('nav.categories')}</a>
           <a href="#/about" class="mobile-nav-link ${isAbout ? 'active' : ''}">${t('nav.about')}</a>
           <a href="#/contact" class="mobile-nav-link ${isContact ? 'active' : ''}">${t('nav.contact')}</a>
+          <a href="#/policy" class="mobile-nav-link ${isPolicy ? 'active' : ''}">${t('nav.policy')}</a>
 
           <div class="mobile-country-wrap" style="margin-top: 1rem; display: flex; align-items: center; justify-content: space-between;">
             <span style="font-size: 0.85rem; color: var(--text-secondary);">Country Pricing:</span>

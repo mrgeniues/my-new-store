@@ -11,6 +11,7 @@ export default {
     categories: 'اقسام',
     about: 'ہمارے بارے میں',
     contact: 'رابطہ کریں',
+    policy: 'پالیسی',
     admin: 'ایڈمن',
     adminPanel: 'ایڈمن پینل',
     administrator: 'ایڈمنسٹریٹر',

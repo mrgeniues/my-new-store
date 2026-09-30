@@ -41,6 +41,7 @@ export function renderFooter() {
               <li><a href="#/categories">${t('nav.categories')}</a></li>
               <li><a href="#/about">${t('nav.about')}</a></li>
               <li><a href="#/contact">${t('nav.contact')}</a></li>
+              <li><a href="#/policy">${t('nav.policy')}</a></li>
               <li><a href="#/admin">${t('nav.admin')}</a></li>
             </ul>
           </div>
@@ -77,6 +78,7 @@ export function renderFooter() {
           <div style="display: flex; gap: 1.5rem;">
             <a href="#/about">${t('nav.about')}</a>
             <a href="#/contact">${t('nav.contact')}</a>
+            <a href="#/policy">${t('nav.policy')}</a>
           </div>
         </div>
       </div>

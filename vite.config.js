@@ -1,11 +1,29 @@
 import { defineConfig } from 'vite';
 import { testMcpConnection, callMcpTool } from './mcpProxy.js';
+import { generateKnowledgePdf } from './knowledgePdfService.js';
 
 function mcpDevProxyPlugin() {
   return {
     name: 'mcp-dev-proxy',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
+        if (req.url === '/api/knowledge-pdf' && req.method === 'GET') {
+          try {
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', 'attachment; filename="AI_Tools_Store_Knowledge_Base.pdf"');
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            await generateKnowledgePdf(res);
+          } catch (err) {
+            console.error('[Vite Knowledge PDF Error]:', err);
+            if (!res.headersSent) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          }
+          return;
+        }
+
         if (req.url === '/api/mcp/test' && req.method === 'POST') {
           let body = '';
           req.on('data', chunk => { body += chunk; });
@@ -116,7 +134,10 @@ export default defineConfig({
   server: {
     port: 3000,
     open: false,
-    host: true
+    host: true,
+    watch: {
+      ignored: ['**/*.pdf', '**/*.log', '**/dist/**']
+    }
   },
   build: {
     outDir: 'dist',

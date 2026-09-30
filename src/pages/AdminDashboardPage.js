@@ -238,6 +238,9 @@ export async function renderAdminDashboardPage(root) {
           <button id="admin-add-cat-top-btn" class="btn btn-secondary" style="font-size: 0.88rem; padding: 0.65rem 1.25rem; font-weight: 700; border-color: rgba(168, 85, 247, 0.4); color: #c084fc;">
             + Add Category
           </button>
+          <a href="/api/knowledge-pdf" target="_blank" id="admin-export-pdf-top-btn" class="btn btn-secondary" style="font-size: 0.88rem; padding: 0.65rem 1.25rem; font-weight: 700; border-color: rgba(16, 185, 129, 0.4); color: #34d399; text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem;" title="Download Real-Time Knowledge Base PDF for n8n RAG">
+            <span>📄</span> Knowledge Base PDF
+          </a>
           <a href="#/" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.65rem 1.15rem; text-decoration: none;">
             View Store
           </a>
@@ -854,6 +857,77 @@ export async function renderAdminDashboardPage(root) {
 
       <!-- TAB 4: STORE, MCP & WHATSAPP SETTINGS -->
       <div id="tab-content-settings" style="${activeTab === 'settings' ? 'display: block;' : 'display: none;'}">
+        <!-- Card 0: AI Knowledge Base PDF Generator for n8n RAG Vector Store -->
+        <div class="admin-table-card" style="max-width: 920px; margin-bottom: 2.25rem; background: radial-gradient(circle at top right, rgba(16, 185, 129, 0.12), rgba(15, 23, 42, 0.96)); border: 2px solid rgba(16, 185, 129, 0.4); border-radius: 18px; padding: 2.25rem; box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5);">
+          
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem;">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+              <div style="width: 54px; height: 54px; border-radius: 14px; background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(6, 182, 212, 0.35)); border: 1.5px solid rgba(16, 185, 129, 0.6); display: flex; align-items: center; justify-content: center; font-size: 1.75rem; box-shadow: 0 0 24px rgba(16, 185, 129, 0.25);">
+                📄
+              </div>
+              <div>
+                <h3 style="font-size: 1.35rem; color: #ffffff; font-weight: 800; margin: 0; letter-spacing: -0.01em;">
+                  AI Knowledge Base PDF (for n8n RAG & AI Agent)
+                </h3>
+                <p style="font-size: 0.88rem; color: #94a3b8; margin: 0.3rem 0 0 0;">
+                  Real-time generated document containing all active tools, regional pricing, store policies, and onboarding guides.
+                </p>
+              </div>
+            </div>
+            <span class="badge" style="background: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.5); font-size: 0.82rem; font-weight: 700; padding: 0.4rem 0.85rem; border-radius: 999px;">
+              ● Real-Time Auto Sync
+            </span>
+          </div>
+
+          <!-- URL & Action row -->
+          <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 14px; padding: 1.25rem; margin-bottom: 1.5rem;">
+            <label class="form-label" style="font-size: 0.85rem; font-weight: 700; color: #38bdf8; margin-bottom: 0.4rem; display: block;">
+              n8n HTTP Request Endpoint URL:
+            </label>
+            <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+              <input 
+                type="text" 
+                id="admin-knowledge-pdf-url" 
+                class="form-input" 
+                readonly 
+                value="${window.location.origin}/api/knowledge-pdf" 
+                style="flex: 1; min-width: 280px; font-family: 'JetBrains Mono', monospace; font-size: 0.88rem; background: #070d18 !important; border: 1px solid rgba(16, 185, 129, 0.4) !important; color: #34d399 !important;"
+              />
+              <button 
+                type="button" 
+                id="btn-copy-pdf-url" 
+                class="btn btn-secondary" 
+                style="padding: 0.65rem 1.15rem; font-size: 0.85rem; font-weight: 700;"
+              >
+                📋 Copy URL
+              </button>
+              <a 
+                href="/api/knowledge-pdf" 
+                target="_blank" 
+                class="btn btn-primary" 
+                style="padding: 0.65rem 1.35rem; font-size: 0.85rem; font-weight: 700; background: linear-gradient(135deg, #059669, #10b981); text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem;"
+              >
+                <span>⬇️</span> Download PDF Now
+              </a>
+            </div>
+          </div>
+
+          <!-- n8n Workflow Instructions Box -->
+          <div style="background: rgba(6, 182, 212, 0.06); border: 1px solid rgba(6, 182, 212, 0.25); border-radius: 12px; padding: 1.25rem; color: #cbd5e1; font-size: 0.88rem; line-height: 1.6;">
+            <div style="font-weight: 700; color: #38bdf8; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem;">
+              <span>🤖</span> n8n HTTP Request Configuration Guide:
+            </div>
+            <ul style="padding-left: 1.25rem; margin: 0; display: flex; flex-direction: column; gap: 0.35rem;">
+              <li><strong>Method:</strong> <code style="color: #34d399;">GET</code></li>
+              <li><strong>URL:</strong> <code style="color: #38bdf8;">${window.location.origin}/api/knowledge-pdf</code></li>
+              <li><strong>Response Format:</strong> Set to <code style="color: #fb923c;">File</code> (Binary) so n8n receives the complete downloadable PDF.</li>
+              <li><strong>RAG Processing:</strong> In n8n, connect this binary output to <strong>Default Data Loader / PDF Loader</strong> &rarr; <strong>Text Splitter</strong> &rarr; <strong>Vector Store</strong> (Qdrant, Pinecone, Supabase Vector).</li>
+              <li><strong>Zero Admin Exposure:</strong> Excludes admin accounts, admin passwords, system routes, and internal database tables. Safe for all customer queries!</li>
+              <li><strong>Automated Future Updates:</strong> Whenever you add, delete, or edit tools in this Admin Panel, the PDF is generated dynamically on every fetch with zero manual re-exports required.</li>
+            </ul>
+          </div>
+        </div>
+
         <!-- Card 1: n8n MCP Server Trigger Integration (Model Context Protocol) -->
         <div class="admin-table-card" style="max-width: 920px; margin-bottom: 2.25rem; background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.12), rgba(15, 23, 42, 0.96)); border: 2px solid rgba(99, 102, 241, 0.4); border-radius: 18px; padding: 2.25rem; box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5);">
           
@@ -1177,6 +1251,20 @@ export async function renderAdminDashboardPage(root) {
   `;
 
   attachNavbarEvents();
+
+  // Copy Knowledge Base PDF URL
+  const copyPdfBtn = document.getElementById('btn-copy-pdf-url');
+  if (copyPdfBtn) {
+    copyPdfBtn.onclick = () => {
+      const input = document.getElementById('admin-knowledge-pdf-url');
+      if (input) {
+        navigator.clipboard.writeText(input.value);
+        showToast('Knowledge Base PDF URL copied to clipboard!', 'success');
+        copyPdfBtn.textContent = '✓ Copied!';
+        setTimeout(() => { copyPdfBtn.textContent = '📋 Copy URL'; }, 2000);
+      }
+    };
+  }
 
   // Tab Switching logic
   document.querySelectorAll('.admin-tab-btn').forEach((btn) => {

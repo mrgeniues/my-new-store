@@ -10,6 +10,7 @@ export default {
     categories: 'Categories',
     about: 'About',
     contact: 'Contact',
+    policy: 'Policy',
     admin: 'Admin',
     adminPanel: 'Admin Panel',
     administrator: 'Administrator',

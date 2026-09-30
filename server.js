@@ -20,9 +20,25 @@ app.use((req, res, next) => {
 });
 
 import { testMcpConnection, callMcpTool } from './mcpProxy.js';
+import { generateKnowledgePdf } from './knowledgePdfService.js';
 
 // Body Parser Middleware for API endpoints
 app.use(express.json());
+
+// Dynamic AI Knowledge Base PDF Export for n8n RAG & Admin
+app.get('/api/knowledge-pdf', async (req, res) => {
+  try {
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="AI_Tools_Store_Knowledge_Base.pdf"');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    await generateKnowledgePdf(res);
+  } catch (err) {
+    console.error('[Knowledge PDF Error]:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to generate knowledge base PDF', details: err.message });
+    }
+  }
+});
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

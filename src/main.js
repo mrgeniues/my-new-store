@@ -7,6 +7,7 @@ import { renderToolDetailsPage } from './pages/ToolDetailsPage.js';
 import { renderCategoriesPage } from './pages/CategoriesPage.js';
 import { renderAboutPage } from './pages/AboutPage.js';
 import { renderContactPage } from './pages/ContactPage.js';
+import { renderPolicyPage } from './pages/PolicyPage.js';
 import { renderHotDealsPage } from './pages/HotDealsPage.js';
 import { renderUpcomingToolsPage } from './pages/UpcomingToolsPage.js';
 import { renderAdminDashboardPage } from './pages/AdminDashboardPage.js';
@@ -21,6 +22,7 @@ const routes = {
   '/categories': renderCategoriesPage,
   '/about': renderAboutPage,
   '/contact': renderContactPage,
+  '/policy': renderPolicyPage,
   '/admin': renderAdminDashboardPage,
   '*': renderHomePage
 };
