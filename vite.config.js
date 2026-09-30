@@ -7,10 +7,11 @@ function mcpDevProxyPlugin() {
     name: 'mcp-dev-proxy',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        if (req.url === '/api/knowledge-pdf' && req.method === 'GET') {
+        if (req.url.startsWith('/api/knowledge-pdf') && req.method === 'GET') {
           try {
+            const isDownload = req.url.includes('download=1');
             res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', 'attachment; filename="AI_Tools_Store_Knowledge_Base.pdf"');
+            res.setHeader('Content-Disposition', `${isDownload ? 'attachment' : 'inline'}; filename="AI_Tools_Store_Knowledge_Base.pdf"`);
             res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
             await generateKnowledgePdf(res);
           } catch (err) {
