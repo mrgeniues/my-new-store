@@ -124,6 +124,74 @@ function mcpDevProxyPlugin() {
           return;
         }
 
+        if (req.url === '/api/ai-agent/chat' && req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => { body += chunk; });
+          req.on('end', async () => {
+            try {
+              const { targetUrl, payload } = body ? JSON.parse(body) : {};
+              if (!targetUrl || !targetUrl.startsWith('http')) {
+                res.setHeader('Content-Type', 'application/json');
+                res.statusCode = 400;
+                res.end(JSON.stringify({ success: false, error: 'Valid targetUrl is required' }));
+                return;
+              }
+
+              let response;
+              try {
+                response = await fetch(targetUrl, {
+                  method: 'POST',
+                  headers: {
+                    'Accept': 'application/json, text/plain, */*',
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'AI-Tools-Store-AiChatbot-Proxy/1.0'
+                  },
+                  body: JSON.stringify(payload || {})
+                });
+              } catch (fetchErr) {
+                if (targetUrl.includes('/webhook-test/')) {
+                  const prodUrl = targetUrl.replace('/webhook-test/', '/webhook/');
+                  response = await fetch(prodUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload || {})
+                  });
+                } else {
+                  throw fetchErr;
+                }
+              }
+
+              // Auto retry with production URL if test URL returned 404
+              if (response.status === 404 && targetUrl.includes('/webhook-test/')) {
+                const prodUrl = targetUrl.replace('/webhook-test/', '/webhook/');
+                response = await fetch(prodUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload || {})
+                });
+              }
+
+              const contentType = response.headers.get('content-type') || '';
+              res.setHeader('Content-Type', 'application/json');
+              res.statusCode = response.status;
+
+              if (contentType.includes('application/json')) {
+                const json = await response.json();
+                const reply = json.output || json.response || json.text || json.message || json.content || (typeof json === 'string' ? json : JSON.stringify(json));
+                res.end(JSON.stringify({ success: true, responseText: reply }));
+              } else {
+                const text = await response.text();
+                res.end(JSON.stringify({ success: true, responseText: text }));
+              }
+            } catch (err) {
+              res.setHeader('Content-Type', 'application/json');
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: err.message }));
+            }
+          });
+          return;
+        }
+
         next();
       });
     }

@@ -25,6 +25,8 @@ export function getAppSettings() {
       mcpSecretKey: parsed.mcpSecretKey || '',
       newUserWebhookUrl: parsed.newUserWebhookUrl || defaultNewUserWebhook || '',
       newUserWebhookEnabled: parsed.newUserWebhookEnabled !== false,
+      aiAgentEnabled: parsed.aiAgentEnabled !== false,
+      aiAgentWebhookUrl: parsed.aiAgentWebhookUrl || '',
       adminWhatsappNumber: parsed.adminWhatsappNumber || '',
       adminWhatsappUrl: parsed.adminWhatsappUrl || defaultWhatsappUrl || '',
       globalDiscountPercent: parsed.globalDiscountPercent !== undefined ? parseInt(parsed.globalDiscountPercent, 10) : 0,
@@ -43,6 +45,8 @@ export function getAppSettings() {
       mcpSecretKey: '',
       newUserWebhookUrl: getEnv('VITE_N8N_NEW_USER_WEBHOOK_URL', ''),
       newUserWebhookEnabled: true,
+      aiAgentEnabled: true,
+      aiAgentWebhookUrl: '',
       adminWhatsappNumber: '',
       adminWhatsappUrl: defaultWhatsappUrl || '',
       globalDiscountPercent: 0,
@@ -69,6 +73,8 @@ export function saveAppSettings(newSettings) {
         id: 'global',
         new_user_webhook_url: merged.newUserWebhookUrl || '',
         new_user_webhook_enabled: merged.newUserWebhookEnabled !== false,
+        ai_agent_enabled: merged.aiAgentEnabled !== false,
+        ai_agent_webhook_url: merged.aiAgentWebhookUrl || '',
         mcp_webhook_url: merged.mcpWebhookUrl || '',
         mcp_secret_key: merged.mcpSecretKey || '',
         admin_whatsapp_number: merged.adminWhatsappNumber || '',
@@ -104,6 +110,8 @@ export async function syncAppSettingsFromSupabase() {
         ...current,
         newUserWebhookUrl: data.new_user_webhook_url || current.newUserWebhookUrl,
         newUserWebhookEnabled: data.new_user_webhook_enabled !== undefined ? data.new_user_webhook_enabled : current.newUserWebhookEnabled,
+        aiAgentEnabled: data.ai_agent_enabled !== undefined ? data.ai_agent_enabled : current.aiAgentEnabled,
+        aiAgentWebhookUrl: data.ai_agent_webhook_url || current.aiAgentWebhookUrl,
         mcpWebhookUrl: data.mcp_webhook_url || current.mcpWebhookUrl,
         mcpSecretKey: data.mcp_secret_key || current.mcpSecretKey,
         adminWhatsappNumber: data.admin_whatsapp_number || current.adminWhatsappNumber,
@@ -331,3 +339,115 @@ export async function triggerNewUserWebhook(userData) {
     return { success: false, error: err.message };
   }
 }
+
+/**
+ * Sends a chat message to the configured n8n AI Agent Webhook
+ * @param {Object} options
+ * @param {string} options.webhookUrl
+ * @param {string} options.message
+ * @param {string} [options.sessionId]
+ * @returns {Promise<Object>} { success, responseText, error }
+ */
+export async function sendAiAgentMessage({ webhookUrl, message, sessionId = 'guest' }) {
+  const url = (webhookUrl || '').trim();
+  if (!url || !url.startsWith('http')) {
+    return {
+      success: false,
+      responseText: 'Please configure the n8n AI Agent Webhook URL in Admin Settings to enable AI responses.'
+    };
+  }
+
+  const payload = {
+    message: message,
+    chatInput: message,
+    action: 'sendMessage',
+    sessionId: sessionId,
+    timestamp: new Date().toISOString()
+  };
+
+  // 1. Try local/production backend proxy first to avoid browser CORS issues
+  try {
+    const proxyRes = await fetch('/api/ai-agent/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetUrl: url, payload })
+    });
+
+    if (proxyRes.ok) {
+      const data = await proxyRes.json();
+      if (data && data.responseText) {
+        return { success: true, responseText: data.responseText };
+      }
+    }
+  } catch (proxyErr) {
+    console.warn('[AiAgent] Proxy call failed, falling back to direct fetch:', proxyErr.message);
+  }
+
+  // 2. Direct fetch fallback
+  try {
+    let response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json, text/plain, */*',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    // Auto-retry with production URL if test URL returned 404
+    if (response.status === 404 && url.includes('/webhook-test/')) {
+      const prodUrl = url.replace('/webhook-test/', '/webhook/');
+      response = await fetch(prodUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    }
+
+    if (!response.ok) {
+      return {
+        success: false,
+        responseText: `n8n webhook responded with status HTTP ${response.status}. Please check your n8n workflow execution.`
+      };
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const json = await response.json();
+      const reply = json.output || json.response || json.text || json.message || json.content || (typeof json === 'string' ? json : JSON.stringify(json));
+      return { success: true, responseText: reply };
+    } else {
+      const text = await response.text();
+      return { success: true, responseText: text || 'Message received by AI Agent.' };
+    }
+  } catch (err) {
+    console.error('[AiAgent] Webhook fetch error:', err);
+    return {
+      success: false,
+      responseText: `Could not reach n8n webhook: ${err.message}. If testing locally, ensure n8n has CORS allowed or workflow is Active.`
+    };
+  }
+}
+
+/**
+ * Tests the n8n AI Agent Webhook connection
+ */
+export async function testAiAgentWebhook(rawUrl) {
+  const url = (rawUrl || '').trim();
+  if (!url || !url.startsWith('http')) {
+    return { success: false, message: 'Please provide a valid URL starting with http:// or https://' };
+  }
+
+  const res = await sendAiAgentMessage({
+    webhookUrl: url,
+    message: 'Hello, this is a diagnostic test from AI Tools Store Admin Panel.',
+    sessionId: 'admin-test'
+  });
+
+  if (res.success) {
+    return { success: true, message: `Connected! Agent replied: "${res.responseText.slice(0, 100)}..."` };
+  } else {
+    return { success: false, message: res.responseText || 'Connection failed' };
+  }
+}
+

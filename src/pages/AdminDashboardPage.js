@@ -5,7 +5,7 @@ import { toolsApi } from '../api/toolsApi.js';
 import { renderNavbar, attachNavbarEvents } from '../components/Navbar.js';
 import { renderFooter } from '../components/Footer.js';
 import { showToast, getCountryFlag, getToolLocalizedPrice, calculateToolDiscountPrice } from '../utils/helpers.js';
-import { getAppSettings, saveAppSettings, testMcpWebhook, testNewUserWebhook, DEFAULT_MCP_TEST_URL } from '../lib/settings.js';
+import { getAppSettings, saveAppSettings, testMcpWebhook, testNewUserWebhook, testAiAgentWebhook, DEFAULT_MCP_TEST_URL } from '../lib/settings.js';
 import { mcpClient } from '../lib/mcpClient.js';
 import { 
   renderUpcomingToolsTableHtml, 
@@ -928,6 +928,108 @@ export async function renderAdminDashboardPage(root) {
           </div>
         </div>
 
+        <!-- Card: AI Chat Agent Mode & n8n Webhook Configuration -->
+        <div class="admin-table-card" style="max-width: 920px; margin-bottom: 2.25rem; background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.15), rgba(15, 23, 42, 0.96)); border: 2px solid rgba(99, 102, 241, 0.45); border-radius: 18px; padding: 2.25rem; box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5);">
+          
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem;">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+              <div style="width: 54px; height: 54px; border-radius: 14px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(6, 182, 212, 0.35)); border: 1.5px solid rgba(99, 102, 241, 0.6); display: flex; align-items: center; justify-content: center; font-size: 1.75rem; box-shadow: 0 0 24px rgba(99, 102, 241, 0.3);">
+                🤖
+              </div>
+              <div>
+                <h3 style="font-size: 1.35rem; color: #ffffff; font-weight: 800; margin: 0; letter-spacing: -0.01em;">
+                  AI Chat Agent Mode (Customer Support Chatbot)
+                </h3>
+                <p style="font-size: 0.88rem; color: #94a3b8; margin: 0.3rem 0 0 0;">
+                  Live customer chatbot widget on the website, connected to your n8n AI Agent and Knowledge Base.
+                </p>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.65rem;">
+              <span id="ai-agent-active-badge" class="badge" style="background: ${appSettings.aiAgentEnabled !== false ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)'}; color: ${appSettings.aiAgentEnabled !== false ? '#34d399' : '#f87171'}; border: 1px solid ${appSettings.aiAgentEnabled !== false ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.5)'}; font-size: 0.82rem; font-weight: 700; padding: 0.4rem 0.85rem; border-radius: 999px;">
+                ${appSettings.aiAgentEnabled !== false ? '● Widget Active on Site' : '○ Widget Hidden'}
+              </span>
+            </div>
+          </div>
+
+          <!-- Enable / Disable Switch Toggle -->
+          <div style="margin-bottom: 1.5rem; padding: 1.1rem 1.25rem; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.85rem;">
+            <div>
+              <div style="font-size: 0.95rem; font-weight: 700; color: #f8fafc;">Show / Hide AI Chatbot Button on Website:</div>
+              <div style="font-size: 0.82rem; color: #94a3b8;">When enabled, the floating AI button appears at the bottom-right of every page for customer queries.</div>
+            </div>
+            <label style="position: relative; display: inline-flex; align-items: center; cursor: pointer; gap: 0.75rem;">
+              <input 
+                type="checkbox" 
+                id="settings-ai-agent-enabled" 
+                ${appSettings.aiAgentEnabled !== false ? 'checked' : ''} 
+                style="width: 22px; height: 22px; accent-color: #6366f1; cursor: pointer;"
+              />
+              <span style="font-size: 0.88rem; font-weight: 700; color: ${appSettings.aiAgentEnabled !== false ? '#38bdf8' : '#94a3b8'};" id="label-ai-agent-status">
+                ${appSettings.aiAgentEnabled !== false ? 'Enabled (Visible)' : 'Disabled (Hidden)'}
+              </span>
+            </label>
+          </div>
+
+          <!-- n8n Webhook URL Input -->
+          <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 14px; padding: 1.25rem; margin-bottom: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+              <label class="form-label" style="font-size: 0.88rem; font-weight: 700; color: #818cf8; margin: 0;">
+                n8n AI Agent Webhook URL:
+              </label>
+              <div style="display: flex; gap: 0.5rem;">
+                <button id="btn-paste-ai-agent-webhook" type="button" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.85rem;">
+                  📋 Paste Link
+                </button>
+                <button id="btn-clear-ai-agent-webhook" type="button" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.75rem; color: #f87171;">
+                  ✕ Clear
+                </button>
+              </div>
+            </div>
+
+            <input 
+              type="url" 
+              id="settings-ai-agent-webhook-url" 
+              class="form-input" 
+              value="${appSettings.aiAgentWebhookUrl || ''}" 
+              placeholder="https://n8n-....cloud/webhook/..." 
+              style="width: 100% !important; min-height: 50px !important; font-size: 0.95rem !important; font-family: 'JetBrains Mono', monospace !important; padding: 0.85rem 1.25rem !important; background: #070d18 !important; border: 1.5px solid rgba(99, 102, 241, 0.5) !important; border-radius: 10px !important; color: #38bdf8 !important; box-sizing: border-box !important;"
+            />
+
+            <div style="display: flex; gap: 0.85rem; align-items: center; flex-wrap: wrap; margin-top: 1.1rem;">
+              <button 
+                id="btn-save-ai-agent-settings" 
+                type="button" 
+                class="btn btn-primary" 
+                style="font-size: 0.88rem; padding: 0.65rem 1.5rem; font-weight: 700; background: linear-gradient(135deg, #4f46e5, #7c3aed);"
+              >
+                💾 Save AI Agent Settings
+              </button>
+              <button 
+                id="btn-test-ai-agent-webhook" 
+                type="button" 
+                class="btn btn-secondary" 
+                style="font-size: 0.88rem; padding: 0.65rem 1.35rem; font-weight: 700; border-color: rgba(99, 102, 241, 0.5);"
+              >
+                ⚡ Test Webhook Connection
+              </button>
+              <span id="ai-agent-webhook-test-status" style="font-size: 0.85rem; font-weight: 600;"></span>
+            </div>
+          </div>
+
+          <!-- Integration Workflow Guide -->
+          <div style="background: rgba(99, 102, 241, 0.06); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 12px; padding: 1.25rem; color: #cbd5e1; font-size: 0.86rem; line-height: 1.6;">
+            <div style="font-weight: 700; color: #a5b4fc; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.4rem;">
+              <span>💡</span> How the AI Agent Works with n8n RAG:
+            </div>
+            <ul style="padding-left: 1.25rem; margin: 0; display: flex; flex-direction: column; gap: 0.35rem;">
+              <li>When a customer types a message in the bottom-right chat widget, it sends <code style="color: #38bdf8;">{ chatInput: "...", sessionId: "..." }</code> to this webhook.</li>
+              <li>Your n8n AI Agent searches the Vector Store (loaded with our <strong>Knowledge Base PDF</strong>) to find prices, policies, and tool features.</li>
+              <li>The agent streams the answer back to the user's right-side chat drawer seamlessly with zero CORS issues!</li>
+            </ul>
+          </div>
+        </div>
+
         <!-- Card 1: n8n MCP Server Trigger Integration (Model Context Protocol) -->
         <div class="admin-table-card" style="max-width: 920px; margin-bottom: 2.25rem; background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.12), rgba(15, 23, 42, 0.96)); border: 2px solid rgba(99, 102, 241, 0.4); border-radius: 18px; padding: 2.25rem; box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5);">
           
@@ -1262,6 +1364,109 @@ export async function renderAdminDashboardPage(root) {
         showToast('Knowledge Base PDF URL copied to clipboard!', 'success');
         copyPdfBtn.textContent = '✓ Copied!';
         setTimeout(() => { copyPdfBtn.textContent = '📋 Copy URL'; }, 2000);
+      }
+    };
+  }
+
+  // AI Agent Settings Event Handlers
+  const aiAgentEnabledCheckbox = document.getElementById('settings-ai-agent-enabled');
+  const aiAgentStatusLabel = document.getElementById('label-ai-agent-status');
+  const aiAgentBadge = document.getElementById('ai-agent-active-badge');
+  const aiAgentWebhookInput = document.getElementById('settings-ai-agent-webhook-url');
+  const btnSaveAiAgent = document.getElementById('btn-save-ai-agent-settings');
+  const btnTestAiAgent = document.getElementById('btn-test-ai-agent-webhook');
+  const btnPasteAiAgent = document.getElementById('btn-paste-ai-agent-webhook');
+  const btnClearAiAgent = document.getElementById('btn-clear-ai-agent-webhook');
+  const aiAgentStatusText = document.getElementById('ai-agent-webhook-test-status');
+
+  if (aiAgentEnabledCheckbox) {
+    aiAgentEnabledCheckbox.onchange = () => {
+      const isChecked = aiAgentEnabledCheckbox.checked;
+      if (aiAgentStatusLabel) {
+        aiAgentStatusLabel.textContent = isChecked ? 'Enabled (Visible)' : 'Disabled (Hidden)';
+        aiAgentStatusLabel.style.color = isChecked ? '#38bdf8' : '#94a3b8';
+      }
+      if (aiAgentBadge) {
+        aiAgentBadge.textContent = isChecked ? '● Widget Active on Site' : '○ Widget Hidden';
+        aiAgentBadge.style.color = isChecked ? '#34d399' : '#f87171';
+        aiAgentBadge.style.borderColor = isChecked ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.5)';
+        aiAgentBadge.style.background = isChecked ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)';
+      }
+      saveAppSettings({ aiAgentEnabled: isChecked });
+      showToast(isChecked ? 'AI Chatbot enabled on website!' : 'AI Chatbot hidden from website', 'info');
+    };
+  }
+
+  if (btnPasteAiAgent && aiAgentWebhookInput) {
+    btnPasteAiAgent.onclick = async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          aiAgentWebhookInput.value = text.trim();
+          showToast('Webhook URL pasted from clipboard!', 'info');
+        }
+      } catch (err) {
+        showToast('Please paste manually using Ctrl+V', 'warning');
+      }
+    };
+  }
+
+  if (btnClearAiAgent && aiAgentWebhookInput) {
+    btnClearAiAgent.onclick = () => {
+      aiAgentWebhookInput.value = '';
+    };
+  }
+
+  if (btnSaveAiAgent && aiAgentWebhookInput) {
+    btnSaveAiAgent.onclick = () => {
+      const url = aiAgentWebhookInput.value.trim();
+      const isEnabled = aiAgentEnabledCheckbox ? aiAgentEnabledCheckbox.checked : true;
+      saveAppSettings({
+        aiAgentEnabled: isEnabled,
+        aiAgentWebhookUrl: url
+      });
+      showToast('AI Agent Webhook settings saved successfully!', 'success');
+    };
+  }
+
+  if (btnTestAiAgent && aiAgentWebhookInput) {
+    btnTestAiAgent.onclick = async () => {
+      const url = aiAgentWebhookInput.value.trim();
+      if (!url) {
+        showToast('Please enter an n8n webhook URL first.', 'warning');
+        return;
+      }
+      btnTestAiAgent.disabled = true;
+      btnTestAiAgent.textContent = 'Testing...';
+      if (aiAgentStatusText) {
+        aiAgentStatusText.textContent = 'Pinging n8n agent...';
+        aiAgentStatusText.style.color = '#38bdf8';
+      }
+
+      try {
+        const res = await testAiAgentWebhook(url);
+        if (res.success) {
+          showToast('AI Agent Webhook connection successful!', 'success');
+          if (aiAgentStatusText) {
+            aiAgentStatusText.textContent = '✓ ' + res.message;
+            aiAgentStatusText.style.color = '#34d399';
+          }
+        } else {
+          showToast('Test failed: ' + res.message, 'warning');
+          if (aiAgentStatusText) {
+            aiAgentStatusText.textContent = '✕ ' + res.message;
+            aiAgentStatusText.style.color = '#f87171';
+          }
+        }
+      } catch (err) {
+        showToast('Connection error: ' + err.message, 'error');
+        if (aiAgentStatusText) {
+          aiAgentStatusText.textContent = '✕ ' + err.message;
+          aiAgentStatusText.style.color = '#f87171';
+        }
+      } finally {
+        btnTestAiAgent.disabled = false;
+        btnTestAiAgent.textContent = '⚡ Test Webhook Connection';
       }
     };
   }

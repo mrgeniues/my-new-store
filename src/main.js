@@ -29,6 +29,7 @@ const routes = {
 
 import { onLanguageChange } from './i18n/i18n.js';
 import { syncAppSettingsFromSupabase } from './lib/settings.js';
+import { initAiChatWidget } from './components/AiChatWidget.js';
 
 // Bootstrap App
 let appRouter = null;
@@ -43,6 +44,9 @@ async function initApp() {
   toolsApi.getTools().catch((err) => {
     console.warn('[AI Tools Store] API initialized with offline fallback dataset:', err);
   });
+
+  // Initialize Floating AI Support Chatbot Widget
+  initAiChatWidget();
 
   // Start Router
   appRouter = new Router(routes, '#app');

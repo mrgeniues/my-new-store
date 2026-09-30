@@ -152,6 +152,62 @@ app.post('/api/webhook/new-user', async (req, res) => {
   }
 });
 
+// n8n AI Agent Chatbot Webhook Proxy Endpoint
+app.post('/api/ai-agent/chat', async (req, res) => {
+  try {
+    const { targetUrl, payload } = req.body || {};
+    if (!targetUrl || !targetUrl.startsWith('http')) {
+      return res.status(400).json({ success: false, error: 'Valid targetUrl starting with http is required' });
+    }
+
+    let response;
+    try {
+      response = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json, text/plain, */*',
+          'Content-Type': 'application/json',
+          'User-Agent': 'AI-Tools-Store-AiChatbot-Proxy/1.0'
+        },
+        body: JSON.stringify(payload || {})
+      });
+    } catch (fetchErr) {
+      if (targetUrl.includes('/webhook-test/')) {
+        const prodUrl = targetUrl.replace('/webhook-test/', '/webhook/');
+        response = await fetch(prodUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload || {})
+        });
+      } else {
+        throw fetchErr;
+      }
+    }
+
+    // Auto retry with production URL if test URL returned 404
+    if (response.status === 404 && targetUrl.includes('/webhook-test/')) {
+      const prodUrl = targetUrl.replace('/webhook-test/', '/webhook/');
+      response = await fetch(prodUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload || {})
+      });
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const json = await response.json();
+      const reply = json.output || json.response || json.text || json.message || json.content || (typeof json === 'string' ? json : JSON.stringify(json));
+      return res.json({ success: true, responseText: reply });
+    } else {
+      const text = await response.text();
+      return res.json({ success: true, responseText: text });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Check if production build (dist/) exists
 if (fs.existsSync(distPath)) {
   // Serve static assets with cache control (index: false so SPA route can inject runtime env)
